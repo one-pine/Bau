@@ -1,7 +1,7 @@
 import type { CapacitorConfig } from '@capacitor/cli'
 
 const config: CapacitorConfig = {
-  // ストア公開後は変更できない ID。公開前に自分のドメインに合わせて決める
+  // ストア公開後は変更できない ID（確定）
   appId: 'com.onepine.bau',
   appName: 'BAU',
   webDir: 'dist',

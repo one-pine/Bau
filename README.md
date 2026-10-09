@@ -62,7 +62,7 @@ npx cap open android            # Android Studio で開いてビルド・実機�
 npx cap open ios                # Xcode で開いてビルド（macOS が必要）
 ```
 
-- アプリ ID は `capacitor.config.ts` の `appId`（現在は仮の `com.onepine.bau`）。ストア公開後は変更できない。
+- アプリ ID は `capacitor.config.ts` の `appId`（`com.onepine.bau` で確定）。ストア公開後は変更できない。
 - ネイティブでは書き出しが共有シートになり、「画像を保存」やほかのアプリへ送れる（`src/platform.ts`）。
 - タップ・長押しで触覚フィードバック（Haptics）。フォントは端末内に同梱し、オフラインで動く。
 - 配信に必要なもの：Apple Developer Program（年額）、Google Play Console（初回登録料）、アイコン各サイズ、スクリーンショット、プライバシーポリシー。
