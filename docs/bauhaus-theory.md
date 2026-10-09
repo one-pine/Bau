@@ -185,6 +185,92 @@
 
 ---
 
+## 10. 立体造形・プロダクトから抽出する原理
+
+家具・日用品・玩具は、平面の理論を「使えるもの」に落とし込んだ実例でもある。
+そこから、平面のルールとして使える **原理の精髄** を取り出す。
+
+### 10-1. ハルトヴィヒのチェスセット（1922–24）— ✅「形が動きを語る」
+立方体・円柱・球だけで駒を作り、**駒の形がそのまま動き方を表す**。
+- ポーンとルーク：盤の縁に直角な動き → 立方体
+- ナイト：鉤形に 4 マス → 直角に組んだ 4 つの立方体
+- ビショップ：斜めの動き → 立方体から斜めの十字を切り抜いた形
+- キング：直角と斜め → 大きな立方体に小さな立方体を斜めに載せる
+- クイーン：最も自由 → 円柱＋球
+
+**ルール化案「形の文法」**：図形ごとにグリッド上の動き方を決め、形からその動きが読めるようにする。
+- □：縦横にだけ動く（直角）
+- △：斜めに動く（鋭角＝対角線）
+- ○：どの方向にも動ける（最も自由）
+- ─：自分の向きに沿ってだけ動く
+
+Auto Flow をこの文法に従った「グリッド上の一手ずつの移動」にでき、ドラッグ時の吸着方向にも使える。
+
+### 10-2. ジードホフ＝ブッシャーの「小さな造船遊び」（1923）— ✅「開かれた遊びと完全な収納」
+- 22 個の木片（赤・黄・青に緑・白）。子どもが自由に組み立てる開かれた遊びのシステム
+- **すべてを並べると、箱と同じ大きさの隙間のない直方体に収まる**
+
+**ルール化案「収納 ⇄ 展開」**：秩序の極として、全図形がすき間なく長方形に詰まる「収納」状態を用意する。収納 ⇄ 展開（自由配置）をアニメーションで行き来する。カオス ⇄ 秩序のトグルに、もう一段「収納」を加える形。
+
+### 10-3. ケラーのゆりかご（1922）— ✅「三原形と三原色で物を組む」
+カンディンスキーの △＝黄、□＝赤、○＝青 を、そのまま家具の構造に使った。
+→ 現在の対応論の、立体における実例。**複数の基本形を組み合わせて一つの「物」を作る** という考え方につながる（10-4）。
+
+### 10-4. ブラントのティーポット MT49（1924）— ✅「日用品を基本形へ還元する、垂直のアクセント」
+- 半球の胴、円、円柱という基本形で日用品を構成した
+- 高い位置の D 字形の取っ手が、**全体の水平な量塊に対して垂直の対比** を作る
+
+**ルール化案**
+- **複合体**：近くにある図形を一つの「物」としてまとめ、一緒に動かす（例：半円＋円柱＋線＝ポット）。半円・円柱（＝長方形の端が丸い形）を基本形に加える
+- **方向の対比**：画面の要素が水平方向に偏っていたら、1 つだけ垂直のアクセントを立てる（逆も同様）。カンディンスキーの線の温度（§1-2）と組み合わせると「冷たい水平の量塊に、暖かい垂直の一点」になる
+
+### 10-5. ブロイヤーのワシリーチェア（1925 / 1927–28）— ✅「線と面への還元、宙に浮く面」
+- 伝統的なクラブチェアを、**輪郭線と面だけに還元** した
+- 布の座面・背・肘は宙に浮いているように見え、座る人の体は鋼管の骨組みに触れない
+- 自転車のハンドルから着想した（技術がそのまま形になる）
+
+**ルール化案**
+- **骨格と面**：直線を「骨格」、ほかの図形を「面」として扱う。面は骨格に触れず、一定のすき間（空気）を保って浮かぶ。図形同士の重なりを禁止して、すき間を美しい比率にそろえるモード
+- **線画モード**：図形を塗りではなく輪郭線で描き、面を少しずらして浮かせる表現
+
+### 10-6. グロピウス「大きな積み木（Baukasten im Großen）」（1923、バウハウス叢書 3）— ✅「最大限の規格化と最大限の変化」
+- 標準化した単位（型）を、作り手や使い手がさまざまに組み合わせる
+- グロピウスの言葉：「可能な限りの規格化と、可能な限りの形の変化」
+
+**ルール化案**：今のグリッド＋フィボナッチ・サイズは、まさにこの「規格化された単位」。これを明示的な原理にし、**多様性スコア**（同じ規格の部品でどれだけ異なる組み合わせが生まれているか）を測る。規格は少なく保ちながら、多様性が下がったら配置の変化を促す。
+
+### 10-7. ヴァーゲンフェルトのランプ WG24（1924）— ✅「円盤・円柱・球と、素材の透明度」
+- 円盤（台座）・円柱（軸）・球（乳白ガラスのかさ）の 3 つの基本立体
+- 透明ガラスと乳白ガラスという **素材の違い** で光の質を作り分ける
+
+**ルール化案「素材」**：図形に素材の属性を持たせる。
+- 不透明（塗装した木）：今の塗り
+- 乳白ガラス：やわらかく光を通し、ふちがぼける
+- 透明ガラス：輪郭と薄い色。後ろの図形の色を少し変える（アルバースの透明の錯覚と同じ扱い）
+- 金属：グラデーションで反射を表す
+
+### 10-8. アルバースの予備課程（1923–33）— 🔶「素材の経済性、紙の折り」
+- 手に入る素材を **経済的に使う** ことを教えた（新聞紙なども使用）
+- 予備課程全体として、素材・エネルギー・時間を最小にして最良の構造を作ることを目指した
+- 紙の模型を使った構造の練習。同心円に折る曲線の折りも
+- ※「最小の労力で最大の効果」という言い回しをアルバースのものとする確かな出典は見つからなかった
+
+**ルール化案**
+- **経済性**：要素の数や総面積が多すぎると「費用」がかかる評価を入れ、少ない要素で均衡が取れた構図を優先する。不要な要素は薄くなって消える
+- **折り**ツール：画面に引いた線で紙のように「折る」と、線の片側の図形が反対側へ鏡像として複製される。万華鏡の、ユーザーが操作できる版
+
+### 10-9. 立体から抽出した原理のまとめ
+| 原理 | 出典 | 平面での使い道 |
+| --- | --- | --- |
+| 形が動きを語る | ハルトヴィヒのチェス | 図形ごとの動きの文法 |
+| 開かれた遊びと完全な収納 | 造船遊び | 収納 ⇄ 展開 のモード |
+| 基本形への還元・複合体 | ブラント、ケラー | 図形を組んで「物」を作る |
+| 水平の量塊に垂直のアクセント | ブラント | 方向の対比の自動調整 |
+| 線と面への還元・浮かぶ面 | ブロイヤー | 骨格と面、すき間の比率 |
+| 規格化と変化 | グロピウス | 規格単位と多様性スコア |
+| 素材の質 | ヴァーゲンフェルト | 不透明・乳白・透明・金属 |
+| 素材の経済性・折り | アルバース | 要素の費用、折りツール |
+
 ## 出典
 - Kandinsky, *Point and Line to Plane*（1926／英訳 1947）: [Bauhaus Book 9](https://www.bauhaus-bookshelf.org/bauhaus-book-9-vassily-kandinsky-point-and-line-to-plane_pdf.html), [Line chapter summary](https://centros.edu.xunta.gal/eoivigo/aulavirtual/pluginfile.php/2667/mod_page/content/15/Kandinsky%20Line%20SUMMARY.pdf), [Study blog (Basic Plane)](http://sgstudyblog.blogspot.com/2016/06/art-wassily-kandinsky-point-and-line-to.html), [KABK thesis ch.3](http://kabk.github.io/govt-theses-15-viktorija-liaudanskaite-media-art-in-the-light-of-kandinskys-theory-of-interactivity/chapter3.html)
 - Kattchee, *Kandinsky, Math Artist?*（Bridges 2013）: [PDF](https://archive.bridgesmathart.org/2013/bridges2013-473.pdf)
@@ -195,3 +281,4 @@
 - Hirschfeld-Mack: [Wikipedia](https://en.wikipedia.org/wiki/Ludwig_Hirschfeld-Mack), [Moving Image Source](https://movingimagesource.us/articles/painting-with-light-20091119), [Univ. of Melbourne](https://blogs.unimelb.edu.au/librarycollections/?p=4761)
 - Schlemmer: [Wikipedia](https://en.wikipedia.org/wiki/Triadisches_Ballett), [schlemmer.org](https://www.schlemmer.org/triadic-ballet), [Harvard GSD](https://www.gsd.harvard.edu/?p=2450587)
 - Klee: [Wikipedia](https://en.wikipedia.org/wiki/Pedagogical_Sketchbook), [Lars Müller](https://www.lars-mueller-publishers.com/pedagogical-sketchbook), [The Collector](https://www.thecollector.com/what-was-paul-klee-pedagogical-sketchbook/)
+- 立体造形: [Hartwig chess set（Quittenbaum）](https://quittenbaum.de/en/auctions/design/160A/josef-hartwigbauhaus-dessau-bauhaus-chess-set-xvi-1924-116732), [VMFA](https://vmfa.museum/wp-subsite/?p=445651), [Small Ship-Building Game（Bauhaus Kooperation）](https://bauhauskooperation.de/en/knowledge/the-bauhaus/works/plastic-arts/small-ship-building-game), [V&A](https://collections.vam.ac.uk/item/O93238), [Kunstpalast](https://sammlung.kunstpalast.de/en/objects/details/53669), [Keler cradle（Bauhaus Kooperation）](https://bauhauskooperation.de/en/knowledge/the-bauhaus/works/joinery/cradle), [Tecta](https://www.tecta.de/en/produkt/cradle/), [Brandt teapot（MoMA）](https://www.moma.org/collection/works/2438), [The Met](https://www.metmuseum.org/art/collection/search/491299), [Breuer B3（MoMA）](https://www.moma.org/collection/works/2851), [Seelow, The Construction Kit and the Assembly Line](https://research.chalmers.se/en/publication/508349), [GHDI](https://germanhistorydocs.org/en/weimar-germany-1918-1933/ghdi:audio-5119), [ARCCA digest](https://arccadigest.org/?p=40756), [Wagenfeld lamp（Univ. Wuppertal）](https://uni-wuppertal.de/en/transfer/science-communication/jahr100wissen-/-100-years-ago/2024/wagenfeld-luminaire), [Goethe-Institut Bauhaus module](https://www.goethe.de/resources/files/pdf186/module_04.pdf), [MIT 6.849 curved creases](https://courses.csail.mit.edu/6.849/spring17/lectures/C05_images.pdf)
