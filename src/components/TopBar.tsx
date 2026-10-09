@@ -16,8 +16,9 @@ export default function TopBar() {
     setExportOpen(false)
     const { ops, W, H } = stageRuntime
     const s = store.get().settings
-    if (kind === 'png') void exportPng(ops, s, W, H)
-    else exportSvg(ops, s, W, H)
+    const job = kind === 'png' ? exportPng(ops, s, W, H) : exportSvg(ops, s, W, H)
+    // 共有シートをユーザーが閉じた場合も reject されるので握りつぶす
+    job.catch(() => {})
   }
 
   return (

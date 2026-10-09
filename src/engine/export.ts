@@ -1,15 +1,7 @@
 import { rgbCss } from './color'
 import { drawOp, lineThickness } from './render'
 import type { DrawOp, Settings } from './types'
-
-function download(href: string, filename: string) {
-  const a = document.createElement('a')
-  a.href = href
-  a.download = filename
-  document.body.appendChild(a)
-  a.click()
-  a.remove()
-}
+import { saveBlob, saveText } from '../platform'
 
 function stamp() {
   const d = new Date()
@@ -31,9 +23,7 @@ export async function exportPng(ops: DrawOp[], settings: Settings, W: number, H:
   for (const op of ops) drawOp(ctx, op, W, H)
   const blob = await new Promise<Blob | null>((res) => canvas.toBlob(res, 'image/png'))
   if (!blob) return
-  const url = URL.createObjectURL(blob)
-  download(url, `bau-${stamp()}.png`)
-  setTimeout(() => URL.revokeObjectURL(url), 2000)
+  await saveBlob(blob, `bau-${stamp()}.png`)
 }
 
 export function blendOp(settings: Settings): GlobalCompositeOperation {
@@ -82,9 +72,6 @@ export function opsToSvg(ops: DrawOp[], settings: Settings, W: number, H: number
 `
 }
 
-export function exportSvg(ops: DrawOp[], settings: Settings, W: number, H: number) {
-  const blob = new Blob([opsToSvg(ops, settings, W, H)], { type: 'image/svg+xml' })
-  const url = URL.createObjectURL(blob)
-  download(url, `bau-${stamp()}.svg`)
-  setTimeout(() => URL.revokeObjectURL(url), 2000)
+export async function exportSvg(ops: DrawOp[], settings: Settings, W: number, H: number) {
+  await saveText(opsToSvg(ops, settings, W, H), `bau-${stamp()}.svg`, 'image/svg+xml')
 }

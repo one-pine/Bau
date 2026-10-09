@@ -13,6 +13,7 @@ import {
   tracePath,
 } from '../engine/render'
 import type { DrawOp, ShapeKind, View, Visual } from '../engine/types'
+import { haptic } from '../platform'
 import { actions, checkpoint, store, useStore } from '../state/store'
 
 /** 書き出しなど、キャンバス外から最新フレームを参照するための共有ランタイム */
@@ -253,7 +254,7 @@ export default function CanvasStage() {
     longPress.current = setTimeout(() => {
       const g = gesture.current
       if (g.type === 'pending' && g.hit) {
-        navigator.vibrate?.(12)
+        haptic('medium')
         actions.openEditor(g.hit)
         gesture.current = { type: 'none' }
       }
@@ -332,6 +333,7 @@ export default function CanvasStage() {
         actions.select(store.get().selectedId === g.hit ? null : g.hit)
       } else {
         actions.addShape({ x: g.world.x / size.W, y: g.world.y / size.H })
+        haptic()
       }
     } else if (g.type === 'draw') {
       const d = draftGeometry(g)
