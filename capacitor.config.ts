@@ -2,7 +2,7 @@ import type { CapacitorConfig } from '@capacitor/cli'
 
 const config: CapacitorConfig = {
   // ストア公開後は変更できない ID（確定）
-  appId: 'com.onepine.bau',
+  appId: 'com.lomaloma.bau',
   appName: 'BAU',
   webDir: 'dist',
   backgroundColor: '#f2eee3',

@@ -1,4 +1,4 @@
-package com.onepine.bau;
+package com.lomaloma.bau;
 
 import com.getcapacitor.BridgeActivity;
 
