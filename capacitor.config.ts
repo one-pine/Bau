@@ -12,6 +12,12 @@ const config: CapacitorConfig = {
   android: {
     backgroundColor: '#f2eee3',
   },
+  plugins: {
+    SystemBars: {
+      // index.html が viewport-fit=cover なので、起動時のレイアウトのずれを防ぐ
+      initialViewportFitValueHint: 'cover',
+    },
+  },
 }
 
 export default config
