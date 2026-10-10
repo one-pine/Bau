@@ -52,6 +52,34 @@ export function ShapeGlyph({ kind, size = 22, color }: { kind: ShapeKind; size?:
   )
 }
 
+/** 道具のアイコン */
+export function ToolGlyph({ tool, size = 22 }: { tool: 'homage' | 'fold' | 'walker'; size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden>
+      {tool === 'homage' && (
+        <>
+          <rect x="2" y="2" width="20" height="20" fill="#e8762c" />
+          <rect x="4" y="5" width="16" height="16" fill="#f0a24a" />
+          <rect x="6" y="8" width="12" height="12" fill="#f2c230" />
+          <rect x="8" y="11" width="8" height="8" fill="#f6dc7a" />
+        </>
+      )}
+      {tool === 'fold' && (
+        <>
+          <polygon points="2,4 12,4 12,20 2,20" fill="#1e4fa0" />
+          <polygon points="12,4 22,4 22,20 12,20" fill="#1e4fa0" opacity="0.35" />
+          <line x1="12" y1="1" x2="12" y2="23" stroke="currentColor" strokeWidth="1.5" strokeDasharray="2 2" />
+        </>
+      )}
+      {tool === 'walker' && (
+        <polyline points="2,20 8,14 8,8 14,8 20,2 22,4" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinejoin="miter" />
+      )}
+    </svg>
+  )
+}
+
+export const TOOL_LABELS = { homage: 'オマージュ', fold: '折り', walker: '散歩する線' } as const
+
 export const SHAPE_LABELS: Record<ShapeKind, string> = {
   circle: '円',
   triangle: '三角',

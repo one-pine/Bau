@@ -15,10 +15,11 @@ import {
   screenToWorld,
   tracePath,
 } from '../engine/render'
-import type { DrawOp, ShapeKind, View, Visual } from '../engine/types'
+import { rootOf } from '../engine/groups'
+import type { DrawOp, ShapeKind, ToolKind, View, Visual } from '../engine/types'
 import { haptic } from '../platform'
 import { runtime } from '../state/runtime'
-import { actions, checkpoint, store, useStore } from '../state/store'
+import { actions, checkpoint, isShapeKind, spawnFrom, store, useStore } from '../state/store'
 
 /** 書き出しなど、キャンバス外から最新フレームを参照するための共有ランタイム */
 export const stageRuntime = { ops: [] as DrawOp[], W: 0, H: 0 }
@@ -29,7 +30,7 @@ type Gesture =
   | { type: 'none' }
   | { type: 'pending'; hit: string | null; start: Pt; world: Pt; t0: number }
   | { type: 'drag'; id: string; startWorld: Pt; baseX: number; baseY: number }
-  | { type: 'draw'; kind: ShapeKind; a: Pt; b: Pt }
+  | { type: 'draw'; kind: ToolKind; a: Pt; b: Pt }
   | {
       type: 'pinch'
       target: string | null
@@ -67,7 +68,7 @@ export default function CanvasStage() {
 
   // 理論ガイド・指揮者のために、いまの画面の評価を共有する
   useEffect(() => {
-    const entries = shapes.flatMap((s) => (targets.has(s.id) ? [{ kind: s.kind, v: targets.get(s.id)! }] : []))
+    const entries = shapes.flatMap((s) => (!s.parent && targets.has(s.id) ? [{ kind: s.kind, v: targets.get(s.id)! }] : []))
     runtime.set({ report: layout.report, features: computeFeatures(entries, size.W, size.H) })
   }, [layout, shapes, targets, size])
 
@@ -131,7 +132,21 @@ export default function CanvasStage() {
         alive.add(s.id)
         let v = vis.get(s.id)
         if (!v) {
-          v = { x: s.x * W, y: s.y * H, size: 0, rotation: t.rotation - 30, color: t.color, alpha: 0, apex: t.apex }
+          // 折りで写した図形は、元の図形の姿から動き出す（紙を折り返すように）
+          const from = spawnFrom.get(s.id)
+          const src = from ? vis.get(from) : undefined
+          spawnFrom.delete(s.id)
+          v = src
+            ? { ...src, color: [...src.color] as typeof src.color }
+            : { x: s.x * W, y: s.y * H, size: 0, rotation: t.rotation - 30, color: t.color, alpha: 0, apex: t.apex }
+          if (!src && s.parent) {
+            // グループの子は親の位置から生まれる
+            const pv = vis.get(s.parent)
+            if (pv) {
+              v.x = pv.x
+              v.y = pv.y
+            }
+          }
           vis.set(s.id, v)
         }
         v.x += (t.x - v.x) * kp
@@ -156,6 +171,8 @@ export default function CanvasStage() {
         symAmt,
         folds: settings.folds,
         mirror: settings.mirror,
+        flowStyle: settings.flowStyle,
+        ...chessCell(settings.grid, W, H),
       })
       stageRuntime.ops = ops
       stageRuntime.W = W
@@ -173,7 +190,7 @@ export default function CanvasStage() {
       ctx.globalCompositeOperation = 'source-over'
 
       const bal = visualBalance(
-        shapes.flatMap((s) => (vis.has(s.id) ? [{ kind: s.kind, v: vis.get(s.id)! }] : [])),
+        shapes.flatMap((s) => (!s.parent && vis.has(s.id) ? [{ kind: s.kind, v: vis.get(s.id)! }] : [])),
         settings,
         W,
         H,
@@ -213,7 +230,13 @@ export default function CanvasStage() {
         ctx.save()
         ctx.translate(d.x, d.y)
         ctx.rotate((d.rotation * Math.PI) / 180)
-        tracePath(ctx, g.kind, d.size)
+        if (g.kind === 'fold') {
+          // 折り線：画面をまたぐ長い線として見せる
+          const L = Math.hypot(W, H) * 2
+          ctx.beginPath()
+          ctx.moveTo(-L, 0)
+          ctx.lineTo(L, 0)
+        } else tracePath(ctx, previewKind(g.kind), d.size)
         ctx.strokeStyle = ink
         ctx.globalAlpha = 0.7
         ctx.setLineDash([5, 5])
@@ -269,7 +292,10 @@ export default function CanvasStage() {
     }
     const w = toWorld(p)
     const zoom = store.get().view.zoom
-    const hit = hitTest(stageRuntime.ops, w.x, w.y, 22 / zoom)
+    const hitOp = hitTest(stageRuntime.ops, w.x, w.y, 22 / zoom)
+    // グループの子に触れたら、グループ全体（親）を選ぶ
+    // 折りの道具では、図形の上から線を引き始めても折り線として扱う
+    const hit = hitOp && store.get().tool !== 'fold' ? rootOf(store.get().shapes, hitOp) : null
     gesture.current = { type: 'pending', hit, start: p, world: w, t0: performance.now() }
     longPress.current = setTimeout(() => {
       const g = gesture.current
@@ -352,20 +378,32 @@ export default function CanvasStage() {
       if (g.hit) {
         actions.select(store.get().selectedId === g.hit ? null : g.hit)
       } else {
-        actions.addShape({ x: g.world.x / size.W, y: g.world.y / size.H })
-        haptic()
+        const tool = store.get().tool
+        const x = g.world.x / size.W
+        const y = g.world.y / size.H
+        if (isShapeKind(tool)) actions.addShape({ x, y })
+        else if (tool === 'homage') actions.addHomage(x, y)
+        else if (tool === 'walker') actions.addWalker(g.world.x, g.world.y, -45, size.W, size.H)
+        // 折りはタップでは何もしない（線を引く必要がある）
+        if (tool !== 'fold') haptic()
       }
     } else if (g.type === 'draw') {
       const d = draftGeometry(g)
       const u = unitPx(size.W, size.H)
-      if (d.size / u >= 4) {
-        actions.addShape({
-          kind: g.kind,
-          x: d.x / size.W,
-          y: d.y / size.H,
-          size: d.size / u,
-          rotation: d.rotation,
-        })
+      if (g.kind === 'fold') {
+        if (Math.hypot(g.b.x - g.a.x, g.b.y - g.a.y) > 20 && actions.fold(g.a, g.b, size.W, size.H) > 0) haptic('medium')
+      } else if (g.kind === 'walker') {
+        actions.addWalker(g.a.x, g.a.y, (Math.atan2(g.b.y - g.a.y, g.b.x - g.a.x) * 180) / Math.PI, size.W, size.H)
+      } else if (d.size / u >= 4) {
+        if (g.kind === 'homage') actions.addHomage(d.x / size.W, d.y / size.H, d.size / u)
+        else
+          actions.addShape({
+            kind: g.kind,
+            x: d.x / size.W,
+            y: d.y / size.H,
+            size: d.size / u,
+            rotation: d.rotation,
+          })
       }
     }
     gesture.current = { type: 'none' }
@@ -390,12 +428,23 @@ export default function CanvasStage() {
   )
 }
 
+/** チェスの 1 マス：グリッドの間隔（黄金比グリッドは不等間隔なので 8 分割で代用） */
+function chessCell(grid: string, W: number, H: number) {
+  const n = grid === '12' ? 12 : 8
+  return { cellX: W / n, cellY: H / n }
+}
+
 /** スワイプの始点・終点から図形の中心・サイズ・角度を求める */
-function draftGeometry(g: { kind: ShapeKind; a: Pt; b: Pt }) {
+/** プレビューで描く形（オマージュは正方形、散歩する線は直線） */
+function previewKind(kind: ToolKind): ShapeKind {
+  return kind === 'homage' ? 'square' : kind === 'walker' || kind === 'fold' ? 'line' : kind
+}
+
+function draftGeometry(g: { kind: ToolKind; a: Pt; b: Pt }) {
   const dx = g.b.x - g.a.x
   const dy = g.b.y - g.a.y
   const len = Math.hypot(dx, dy)
-  if (g.kind === 'line') {
+  if (g.kind === 'line' || g.kind === 'walker' || g.kind === 'fold') {
     return { x: (g.a.x + g.b.x) / 2, y: (g.a.y + g.b.y) / 2, size: len, rotation: (Math.atan2(dy, dx) * 180) / Math.PI }
   }
   // 始点を中心に、スワイプ方向へ「向き」を持たせる（三角形は頂点がスワイプ方向を向く）

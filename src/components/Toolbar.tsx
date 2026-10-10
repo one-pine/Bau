@@ -1,13 +1,21 @@
 import { AnimatePresence, motion } from 'framer-motion'
 import { PenLine, Redo2, Shapes, Trash2, Undo2 } from 'lucide-react'
 import { useState } from 'react'
-import type { ShapeKind } from '../engine/types'
+import type { ReactNode } from 'react'
+import type { ShapeKind, ToolKind } from '../engine/types'
 import { actions, useStore } from '../state/store'
-import { IconButton, SHAPE_LABELS, ShapeGlyph } from './ui'
+import { IconButton, SHAPE_LABELS, ShapeGlyph, TOOL_LABELS, ToolGlyph } from './ui'
 
 /** 基本の 4 つ（カンディンスキーの三原形と線）はいつも見せ、イッテンの残り 3 形は「その他の形」から選ぶ */
 const PRIMARY: ShapeKind[] = ['circle', 'triangle', 'square', 'line']
 const SECONDARY: ShapeKind[] = ['trapezoid', 'spherical', 'ellipse']
+/** 道具：アルバースの正方形へのオマージュと折り、クレーの散歩する線 */
+const TOOLS = ['homage', 'fold', 'walker'] as const
+const TOOL_HINT = {
+  homage: 'タップで入れ子の正方形（余白 1 : 2 : 3）',
+  fold: '線を引いて画面を折る。図形の多い側が反対側へ写る',
+  walker: 'スワイプした向きへ、線が自分で歩いていく',
+} as const
 
 export default function Toolbar() {
   const tool = useStore((s) => s.tool)
@@ -17,7 +25,12 @@ export default function Toolbar() {
   const empty = useStore((s) => s.shapes.length === 0)
 
   const [moreOpen, setMoreOpen] = useState(false)
-  const secondaryActive = SECONDARY.includes(tool)
+  const pick = (t: ToolKind) => {
+    actions.setTool(t)
+    setMoreOpen(false)
+  }
+  const secondaryActive = !(PRIMARY as string[]).includes(tool)
+  const activeTool = (TOOLS as readonly string[]).includes(tool) ? (tool as (typeof TOOLS)[number]) : null
 
   return (
     <nav className="pointer-events-none absolute inset-x-0 bottom-0 z-20 flex flex-col items-center gap-2 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
@@ -28,24 +41,29 @@ export default function Toolbar() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 8 }}
             transition={{ duration: 0.16, ease: 'easeOut' }}
-            className="pointer-events-auto flex divide-x divide-ink border border-ink bg-paper ring-1 ring-paper/50"
+            className="pointer-events-auto grid grid-cols-3 border-t border-l border-ink bg-paper ring-1 ring-paper/50"
           >
             {SECONDARY.map((k) => (
-              <IconButton
-                key={k}
-                label={SHAPE_LABELS[k]}
-                active={tool === k}
-                wide
-                onClick={() => {
-                  actions.setTool(k)
-                  setMoreOpen(false)
-                }}
-              >
+              <MoreButton key={k} label={SHAPE_LABELS[k]} active={tool === k} onClick={() => pick(k)}>
                 <ShapeGlyph kind={k} size={20} />
-                <span className="tracking-normal normal-case">{SHAPE_LABELS[k]}</span>
-              </IconButton>
+              </MoreButton>
+            ))}
+            {TOOLS.map((t) => (
+              <MoreButton key={t} label={TOOL_LABELS[t]} active={tool === t} onClick={() => pick(t)}>
+                <ToolGlyph tool={t} size={20} />
+              </MoreButton>
             ))}
           </motion.div>
+        )}
+        {!moreOpen && activeTool && (
+          <motion.p
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="border border-ink bg-paper px-2 py-1 text-[11px] ring-1 ring-paper/50"
+          >
+            {TOOL_HINT[activeTool]}
+          </motion.p>
         )}
       </AnimatePresence>
       <div className="pointer-events-auto flex divide-x divide-ink border border-ink bg-paper ring-1 ring-paper/50">
@@ -56,10 +74,10 @@ export default function Toolbar() {
             </span>
           </IconButton>
         ))}
-        <IconButton label="その他の形" active={secondaryActive || moreOpen} onClick={() => setMoreOpen((v) => !v)}>
+        <IconButton label="形と道具" active={secondaryActive || moreOpen} onClick={() => setMoreOpen((v) => !v)}>
           {secondaryActive ? (
             <span className="rounded-full bg-paper p-1">
-              <ShapeGlyph kind={tool} size={20} />
+              {activeTool ? <ToolGlyph tool={activeTool} size={20} /> : <ShapeGlyph kind={tool as ShapeKind} size={20} />}
             </span>
           ) : (
             <Shapes size={18} />
@@ -79,5 +97,23 @@ export default function Toolbar() {
         </IconButton>
       </div>
     </nav>
+  )
+}
+
+function MoreButton({ label, active, onClick, children }: { label: string; active: boolean; onClick: () => void; children: ReactNode }) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      aria-pressed={active}
+      onClick={onClick}
+      className={[
+        'flex h-11 items-center gap-2 border-r border-b border-ink px-3 text-[12px]',
+        active ? 'bg-ink text-paper' : 'bg-paper text-ink',
+      ].join(' ')}
+    >
+      {children}
+      <span>{label}</span>
+    </button>
   )
 }

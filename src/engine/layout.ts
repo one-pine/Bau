@@ -3,16 +3,28 @@
  *
  * 1. 色の段（palette.ts）：形と色の対応 → 背景との対比補正 → イッテンの対比モード → 色調（位置に依存しない）
  * 2. 初期配置：各図形を、ルールのコストが最も低いグリッド点へ順に置く（貪欲法）
- * 3. 局所探索：図形を 1 つずつ「近くの交点へ移す／反転する／フィボナッチ 1 段変える／ほかの図形と入れ替える」を試し、
+ * 3. 局所探索：図形を 1 つずつ「近くの交点へ移す／反転する／フィボナッチ 1 段変える／90° 回す／ほかの図形と入れ替える」を試し、
  *    重み付きコストの合計が下がる手を採用する。改善がなくなるまで繰り返す
  *
  * 直前に操作された図形（anchor）は動かさない。ほかの図形が連鎖的に動いて全体を整える。
  */
-import { FIB, mulberry32, snapFib, snapPoints, unitPx, type SnapPoint } from './bauhaus'
+import { FIB, mulberry32, snapFib, snapPoints, unitPx, visualMass, type SnapPoint } from './bauhaus'
 import { clampApex } from './geometry'
+import { deriveChildren } from './groups'
 import { resolveColors } from './palette'
-import { DEFAULT_WEIGHTS, NO_INSETS, RULES, balanceTarget, makeItem, perceivedCenter, type Insets, type Item, type RuleContext } from './rules'
-import type { RuleId, Settings, Shape, Visual } from './types'
+import {
+  DEFAULT_WEIGHTS,
+  NO_INSETS,
+  RULES,
+  balanceTarget,
+  makeItem,
+  orientation,
+  perceivedCenter,
+  type Insets,
+  type Item,
+  type RuleContext,
+} from './rules'
+import type { RGB, RuleId, Settings, Shape, Visual } from './types'
 
 export interface RuleReport {
   /** 重みを掛ける前のコスト */
@@ -57,6 +69,7 @@ export function solveLayout(
     // カオスでは理論を外す（ユーザーの色そのまま）。ただし色調（モノトーン）は保つ
     const colors = resolveColors(shapes, settings, { theory: false })
     shapes.forEach((s, i) => {
+      if (s.parent) return
       const r = mulberry32(s.seed ^ settings.chaosSeed)
       visuals.set(s.id, {
         x: clamp(s.x + (r() - 0.5) * 0.5, 0.04, 0.96) * W,
@@ -68,6 +81,7 @@ export function solveLayout(
         apex: clampApex((s.apex ?? 60) + (r() - 0.5) * 60),
       })
     })
+    deriveChildren(shapes, visuals, colorMap(shapes, colors))
     return { visuals, report: null }
   }
 
@@ -83,7 +97,9 @@ export function solveLayout(
 
   // 1. 色の段
   const colors = resolveColors(shapes, settings, { theory: true })
-  const items: Item[] = shapes.map((s, i) => {
+  // グループの子はレイアウトの対象にしない（親に付いて動く）
+  const roots = shapes.flatMap((s, i) => (s.parent ? [] : [{ s, i }]))
+  const items: Item[] = roots.map(({ s, i }) => {
     const color = colors[i]
     const fib = FIB.indexOf(snapFib(s.size))
     return makeItem(s, {
@@ -96,12 +112,24 @@ export function solveLayout(
       y: 0,
       size: FIB[fib] * u,
       rotation: s.kind === 'circle' ? 0 : Math.round(s.rotation / 45) * 45,
+      rawRotation: s.kind === 'circle' ? 0 : Math.round(s.rotation / 45) * 45,
       apex: clampApex(s.apex),
       color,
       alpha: s.alpha,
       anchor: s.id === anchorId,
     })
   })
+
+  // グループの重さ：親の上に重なって描かれる子（オマージュの内側の正方形）は数えず、
+  // 離れて並ぶ子（散歩する線の線分）の重さは親に足す
+  for (const it of items) {
+    let extra = 0
+    shapes.forEach((c, ci) => {
+      if (c.parent !== it.shape.id || !c.rel || c.rel.light !== undefined) return
+      extra += visualMass(c.kind, { size: c.rel.scale, color: colors[ci], alpha: c.alpha, apex: c.apex })
+    })
+    it.massCoef += extra
+  }
 
   const place = (it: Item, point: number, fib: number) => {
     it.point = point
@@ -163,23 +191,28 @@ export function solveLayout(
       const localBefore = localTerms(i, items)
       const globalBefore = globalCost(items)
       const before = localBefore + globalBefore
-      const cands: [number, number][] = []
-      for (const p of neighbors[p0]) cands.push([p, f0])
-      for (const p of mirrorOf[p0]) cands.push([p, f0])
-      if (f0 > 0) cands.push([p0, f0 - 1])
-      if (f0 < FIB.length - 1) cands.push([p0, f0 + 1])
+      const r0 = it.rotation
+      const cands: [number, number, number][] = []
+      for (const p of neighbors[p0]) cands.push([p, f0, r0])
+      for (const p of mirrorOf[p0]) cands.push([p, f0, r0])
+      if (f0 > 0) cands.push([p0, f0 - 1, r0])
+      if (f0 < FIB.length - 1) cands.push([p0, f0 + 1, r0])
+      // 向きを持つ形（線・楕円・台形・細長い三角形）は 90° 回す手も試す（方向の対比のため）
+      if (orientation(it).e >= 0.15) cands.push([p0, f0, r0 + 90], [p0, f0, r0 - 90])
 
-      let best: [number, number] | null = null
+      let best: [number, number, number] | null = null
       let bestDelta = -EPS
-      for (const [p, f] of cands) {
+      for (const [p, f, r] of cands) {
         evals++
         place(it, p, f)
+        it.rotation = r
         const delta = localTerms(i, items) + globalCost(items) - before
         if (delta < bestDelta) {
           bestDelta = delta
-          best = [p, f]
+          best = [p, f, r]
         }
       }
+      it.rotation = r0
       place(it, p0, f0)
 
       // 入れ替え：2 つの図形の位置を交換する（重いものを下げつつ重心を保つ、といった協調した動き）
@@ -210,6 +243,7 @@ export function solveLayout(
         place(other, p0, other.fib)
       } else if (best) {
         place(it, best[0], best[1])
+        it.rotation = best[2]
       }
       if (swapWith >= 0 || best) {
         moves++
@@ -217,6 +251,21 @@ export function solveLayout(
       }
     }
     if (!improved) break
+  }
+
+  // 回された直線は「線の温度」の色を新しい向きで塗り直す
+  const turned = items.filter((it) => it.kind === 'line' && it.rotation !== it.rawRotation)
+  if (turned.length) {
+    const rotated = shapes.map((s) => {
+      const it = turned.find((t) => t.shape.id === s.id)
+      return it ? { ...s, rotation: it.rotation } : s
+    })
+    const recolored = resolveColors(rotated, settings, { theory: true })
+    for (const it of turned) {
+      const idx = shapes.findIndex((s) => s.id === it.shape.id)
+      it.color = recolored[idx]
+      colors[idx] = recolored[idx]
+    }
   }
 
   for (const it of items) {
@@ -230,6 +279,7 @@ export function solveLayout(
       apex: it.apex,
     })
   }
+  deriveChildren(shapes, visuals, colorMap(shapes, colors))
   return { visuals, report: buildReport(items, ctx, weights, moves) }
 }
 
@@ -279,6 +329,10 @@ function buildMirrors(points: SnapPoint[], W: number, H: number): number[][] {
       .map((k) => index.get(k))
       .filter((j): j is number => j !== undefined && j !== i),
   )
+}
+
+function colorMap(shapes: Shape[], colors: RGB[]) {
+  return new Map(shapes.map((s, i) => [s.id, colors[i]]))
 }
 
 function clamp(v: number, lo: number, hi: number) {

@@ -1,13 +1,14 @@
 import { useSyncExternalStore } from 'react'
 import { FIB, PALETTE } from '../engine/bauhaus'
 import { DEFAULT_WEIGHTS } from '../engine/rules'
-import type { Settings, Shape, ShapeKind, View } from '../engine/types'
+import { familyIds, homageRelations, reflectPoint, reflectRotation, segmentsToRelations, sideOf, walkPath } from '../engine/groups'
+import type { Settings, Shape, ShapeKind, ToolKind, View } from '../engine/types'
 import { recordActivity, type ActivityType } from './activity'
 
 export interface AppState {
   shapes: Shape[]
   settings: Settings
-  tool: ShapeKind
+  tool: ToolKind
   selectedId: string | null
   /** 直前に追加・変更された図形。重心調整で固定される。 */
   anchorId: string | null
@@ -37,6 +38,7 @@ const defaultSettings: Settings = {
   tension: -0.3,
   contrastMode: 'none',
   tone: 'color',
+  flowStyle: 'energy',
 }
 
 export const defaultView: View = { zoom: 1, rotation: 0, panX: 0, panY: 0 }
@@ -101,6 +103,37 @@ export function useStore<T>(sel: (s: AppState) => T): T {
 
 const uid = () => Math.random().toString(36).slice(2, 10)
 
+export const isShapeKind = (t: ToolKind): t is ShapeKind => t !== 'homage' && t !== 'fold' && t !== 'walker'
+
+/** 折りで写した図形が、どの図形の位置から動き出すか（描画側が一度だけ読む） */
+export const spawnFrom = new Map<string, string>()
+
+function newShape(p: Partial<Shape> & Pick<Shape, 'kind' | 'x' | 'y'>): Shape {
+  return {
+    size: 55,
+    rotation: 0,
+    apex: 60,
+    color: PALETTE[Math.floor(Math.random() * 4)],
+    colorLocked: false,
+    alpha: 1,
+    contrast: 0,
+    seed: Math.floor(Math.random() * 2 ** 31),
+    ...p,
+    id: uid(),
+  }
+}
+
+/** 親とその子孫を、新しい id で複製する。transform は親にだけ適用し、子は新しい親を指す */
+function cloneFamily(shapes: Shape[], rootId: string, transform: (root: Shape) => Shape): Shape[] {
+  const ids = familyIds(shapes, rootId)
+  const map = new Map(ids.map((id) => [id, uid()]))
+  return ids.map((id, i) => {
+    const s = shapes.find((x) => x.id === id)!
+    const base = i === 0 ? transform(s) : { ...s }
+    return { ...base, id: map.get(id)!, parent: s.parent ? map.get(s.parent) : undefined, seed: s.seed + 7919 }
+  })
+}
+
 /** 連続して起きる操作（ドラッグ・スライダー・ズーム）は 0.4 秒に 1 回だけ記録する */
 const log = (type: ActivityType, continuous = false) => recordActivity(type, Date.now(), continuous ? 400 : 0)
 
@@ -110,11 +143,11 @@ export function checkpoint() {
 }
 
 export const actions = {
-  setTool: (tool: ShapeKind) => set({ tool }),
+  setTool: (tool: ToolKind) => set({ tool }),
 
   addShape(p: Partial<Shape> & Pick<Shape, 'x' | 'y'>): string {
     checkpoint()
-    const kind = p.kind ?? state.tool
+    const kind: ShapeKind = p.kind ?? (isShapeKind(state.tool) ? state.tool : 'circle')
     const shape: Shape = {
       size: FIB[3 + Math.floor(Math.random() * 3)],
       rotation: 0,
@@ -145,8 +178,9 @@ export const actions = {
   removeShape(id: string) {
     log('remove')
     checkpoint()
+    const family = new Set(familyIds(state.shapes, id))
     set({
-      shapes: state.shapes.filter((s) => s.id !== id),
+      shapes: state.shapes.filter((s) => !family.has(s.id)),
       selectedId: null,
       editorOpen: false,
       anchorId: null,
@@ -156,15 +190,80 @@ export const actions = {
   duplicate(id: string) {
     const s = state.shapes.find((x) => x.id === id)
     if (!s) return
-    const nid = actions.addShape({ ...s, x: s.x + 0.08, y: s.y + 0.06, seed: s.seed + 7919 })
-    set({ selectedId: nid })
+    checkpoint()
+    const copies = cloneFamily(state.shapes, id, (root) => ({ ...root, x: root.x + 0.08, y: root.y + 0.06 }))
+    set({ shapes: [...state.shapes, ...copies], anchorId: copies[0].id, selectedId: copies[0].id })
+    log('add')
   },
 
   bringToFront(id: string) {
-    const s = state.shapes.find((x) => x.id === id)
-    if (!s) return
+    if (!state.shapes.some((x) => x.id === id)) return
     checkpoint()
-    set({ shapes: [...state.shapes.filter((x) => x.id !== id), s] })
+    const family = new Set(familyIds(state.shapes, id))
+    set({ shapes: [...state.shapes.filter((x) => !family.has(x.id)), ...state.shapes.filter((x) => family.has(x.id))] })
+  },
+
+  /** アルバース「正方形へのオマージュ」：入れ子の 4 重の正方形 */
+  addHomage(x: number, y: number, size = 89) {
+    checkpoint()
+    const root = newShape({ kind: 'square', x, y, size })
+    const kids = homageRelations().map((rel) => newShape({ kind: 'square', x, y, size, parent: root.id, rel }))
+    set({ shapes: [...state.shapes, root, ...kids], anchorId: root.id, selectedId: null })
+    log('add')
+  },
+
+  /**
+   * クレー「線を散歩に連れ出す」：引いた向きから線が自分で歩いて伸びていく。
+   * 最初の線分を親にして、残りの線分を少しずつ足していく（伸びていく様子を見せる）。
+   */
+  addWalker(ax: number, ay: number, angleDeg: number, W: number, H: number) {
+    checkpoint()
+    const u = Math.min(W, H) / 400
+    const seed = Math.floor(Math.random() * 2 ** 31)
+    const segs = walkPath(ax, ay, angleDeg, u, seed)
+    const rels = segmentsToRelations(segs)
+    const first = segs[0]
+    const root = newShape({ kind: 'line', x: first.x / W, y: first.y / H, size: first.length / u, rotation: first.rotation, seed })
+    set({ shapes: [...state.shapes, root], anchorId: root.id, selectedId: null })
+    log('add')
+    rels.forEach((rel, i) => {
+      setTimeout(() => {
+        if (!state.shapes.some((s) => s.id === root.id)) return
+        // 子の線分も自分の向きを持つ（線の温度で色が決まるため）
+        const rotation = root.rotation + rel.rot
+        const kid = newShape({ kind: 'line', x: root.x, y: root.y, size: root.size, rotation, parent: root.id, rel, seed: seed + i + 1 })
+        set({ shapes: [...state.shapes, kid] })
+      }, 110 * (i + 1))
+    })
+  },
+
+  /**
+   * アルバースの予備課程の「折り」：線 a→b で画面を紙のように折り、図形の多い側を反対側へ鏡像として写す。
+   * 写した図形は元の図形の位置から動き出す（spawnFrom）ので、折り返される様子が見える。
+   */
+  fold(a: { x: number; y: number }, b: { x: number; y: number }, W: number, H: number): number {
+    const roots = state.shapes.filter((s) => !s.parent)
+    const side = (s: Shape) => sideOf(s.x * W, s.y * H, a.x, a.y, b.x, b.y)
+    const left = roots.filter((s) => side(s) < 0)
+    const right = roots.filter((s) => side(s) > 0)
+    const source = left.length >= right.length ? left : right
+    if (!source.length) return 0
+    checkpoint()
+    const lineDeg = (Math.atan2(b.y - a.y, b.x - a.x) * 180) / Math.PI
+    const copies: Shape[] = []
+    for (const s of source) {
+      const family = cloneFamily(state.shapes, s.id, (root) => {
+        const p = reflectPoint(root.x * W, root.y * H, a.x, a.y, b.x, b.y)
+        return { ...root, x: p.x / W, y: p.y / H, rotation: reflectRotation(root.rotation, lineDeg) }
+      })
+      // 鏡に映すと、子の親に対する左右と回転の向きが反転する
+      for (const c of family.slice(1)) if (c.rel) c.rel = { ...c.rel, dx: -c.rel.dx, rot: -c.rel.rot }
+      spawnFrom.set(family[0].id, s.id)
+      copies.push(...family)
+    }
+    set({ shapes: [...state.shapes, ...copies], anchorId: null, selectedId: null })
+    log('add')
+    return copies.length
   },
 
   select: (id: string | null) => set({ selectedId: id, editorOpen: id ? state.editorOpen : false }),

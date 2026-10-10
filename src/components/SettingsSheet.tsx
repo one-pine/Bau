@@ -157,6 +157,23 @@ export default function SettingsSheet() {
           </div>
         </div>
 
+        <div>
+          <SectionTitle>Auto Flow の動き</SectionTitle>
+          <Segmented<'energy' | 'chess'>
+            value={s.flowStyle}
+            onChange={(flowStyle) => set({ flowStyle, flow: true })}
+            options={[
+              { value: 'energy', label: 'エネルギー' },
+              { value: 'chess', label: 'チェス（形の文法）' },
+            ]}
+          />
+          <p className="mt-2 text-[11px] leading-relaxed opacity-60">
+            {s.flowStyle === 'chess'
+              ? 'ハルトヴィヒのチェス：□は縦横、△は斜め、○は自由に、グリッドを一手ずつ進んで戻る。'
+              : '△は鋭く往復、○は円を描き、□は静止と 90° の回転を繰り返す。'}
+          </p>
+        </div>
+
         <button
           type="button"
           onClick={() => actions.setView(defaultView)}

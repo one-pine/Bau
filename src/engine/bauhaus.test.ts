@@ -31,6 +31,7 @@ const settings: Settings = {
   tension: 0,
   contrastMode: 'none',
   tone: 'color',
+  flowStyle: 'energy',
 }
 
 const shape = (p: Partial<Shape>): Shape => ({

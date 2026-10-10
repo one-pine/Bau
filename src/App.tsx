@@ -72,7 +72,7 @@ export default function App() {
     settings.mode === 'order' ? `ORDER ${GRID_LABEL[settings.grid]}` : 'CHAOS',
     settings.mode === 'order' && settings.correspondence && 'KANDINSKY',
     settings.symmetry && `SYM ${settings.folds}${settings.mirror ? 'm' : ''}`,
-    settings.flow && 'FLOW',
+    settings.flow && (settings.flowStyle === 'chess' ? 'FLOW CHESS' : 'FLOW'),
     settings.mode === 'order' && settings.contrastMode !== 'none' && `ITTEN ${CONTRAST_LABEL[settings.contrastMode]}`,
     settings.tone !== 'color' && (settings.tone === 'mono' ? 'MONO' : 'MONO+1'),
   ].filter(Boolean)

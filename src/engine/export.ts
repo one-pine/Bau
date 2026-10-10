@@ -48,7 +48,7 @@ export function opsToSvg(ops: DrawOp[], settings: Settings, W: number, H: number
     .map((op) => {
       const t = `translate(${f(op.x)} ${f(op.y)}) rotate(${f(op.rotation)})`
       const fill = rgbCss(op.color)
-      const o = op.alpha < 1 ? ` opacity="${f(op.alpha)}"` : ''
+      const o = (op.alpha < 1 ? ` opacity="${f(op.alpha)}"` : '') + (op.solid ? ' style="mix-blend-mode:normal"' : '')
       const h = op.size / 2
       switch (op.kind) {
         case 'circle':

@@ -11,7 +11,7 @@
  */
 import { visualMass, type SnapPoint } from './bauhaus'
 import { rgbToHsl } from './color'
-import { areaFactor } from './geometry'
+import { areaFactor, triangleDims } from './geometry'
 import type { RGB, RuleId, RuleWeights, Settings, Shape, ShapeKind } from './types'
 
 /** ソルバーが扱う図形 1 つ分の作業状態 */
@@ -23,6 +23,8 @@ export interface Item {
   rawY: number
   /** ユーザーが指定した大きさに最も近いフィボナッチ段階 */
   rawFib: number
+  /** ユーザーが付けた向き（45° 刻みに丸めたもの） */
+  rawRotation: number
   /** 現在のグリッド点とフィボナッチ段階 */
   point: number
   fib: number
@@ -134,8 +136,15 @@ const fidelity: LocalRule = {
     const dx = it.x - it.rawX
     const dy = it.y - it.rawY
     const d = Math.sqrt(dx * dx + dy * dy) / ctx.minDim
-    return d + 0.45 * Math.abs(it.fib - it.rawFib)
+    return d + 0.45 * Math.abs(it.fib - it.rawFib) + 0.25 * (turnBetween(it.rotation, it.rawRotation, it.kind) / 90)
   },
+}
+
+/** 2 つの向きの差（度）。直線と楕円は 180° 回すと同じ形なので 90° が最大 */
+export function turnBetween(a: number, b: number, kind: ShapeKind): number {
+  const period = kind === 'line' || kind === 'ellipse' ? 180 : 360
+  const d = (((a - b) % period) + period) % period
+  return Math.min(d, period - d)
 }
 
 /** E1 モジュール・グリッド：対角線上の交点を好む */
@@ -288,7 +297,102 @@ const extension: GlobalRule = {
   },
 }
 
-export const RULES: Rule[] = [fidelity, grid, spacing, frame, balance, tension, extension]
+// ───────────────────────── N16 ハルトヴィヒの形の文法
+
+/**
+ * ハルトヴィヒのチェスセット（1924）では、駒の形がそのまま動き方を表す（docs/bauhaus-theory.md §10-1）。
+ * ここでは「置いた場所から動くときの向き」に当てはめる。
+ *   □・台形（ルーク）… 縦横にだけ動く
+ *   △（ビショップ）… 斜めにだけ動く
+ *   ─ … 自分の向きに沿ってだけ動く
+ *   ○・球面三角形・楕円（クイーン）… どの向きにも動ける
+ * 文法から外れた分（縦横の動きなら斜めの成分）だけコスト。
+ */
+export function grammarDeviation(it: Pick<Item, 'kind' | 'x' | 'y' | 'rawX' | 'rawY' | 'rotation'>): number {
+  const dx = it.x - it.rawX
+  const dy = it.y - it.rawY
+  switch (it.kind) {
+    case 'square':
+    case 'trapezoid':
+      return Math.min(Math.abs(dx), Math.abs(dy))
+    case 'triangle':
+      return Math.abs(Math.abs(dx) - Math.abs(dy)) / Math.SQRT2
+    case 'line': {
+      const r = (it.rotation * Math.PI) / 180
+      return Math.abs(-dx * Math.sin(r) + dy * Math.cos(r))
+    }
+    default:
+      return 0
+  }
+}
+
+const grammar: LocalRule = {
+  id: 'grammar',
+  kind: 'local',
+  label: '文法',
+  unary(it, ctx) {
+    return (grammarDeviation(it) / ctx.minDim) * 2
+  },
+}
+
+// ───────────────────────── N19 ブラントの方向の対比
+
+/**
+ * 図形の「向き」：細長さ e（0＝向きなし … 1＝線）と、長い方の軸の角度（度）。
+ * □・○・球面三角形は向きを持たない。三角形は頂角で縦長（鋭角）にも横長（鈍角）にもなる。
+ */
+export function orientation(it: Pick<Item, 'kind' | 'rotation' | 'apex'>): { e: number; axis: number } {
+  switch (it.kind) {
+    case 'line':
+      return { e: 1, axis: it.rotation }
+    case 'ellipse':
+      return { e: 0.5, axis: it.rotation }
+    case 'trapezoid':
+      return { e: 0.3, axis: it.rotation }
+    case 'triangle': {
+      const { b, h } = triangleDims(1, it.apex)
+      return h > b ? { e: 1 - b / h, axis: it.rotation + 90 } : { e: 1 - h / b, axis: it.rotation }
+    }
+    default:
+      return { e: 0, axis: 0 }
+  }
+}
+
+/**
+ * 水平方向と垂直方向の「量」。ブラントのティーポットでは、水平な胴の量塊に対して取っ手が垂直のアクセントになる
+ * （§10-4）。少ない方が全体の 2 割ほどのとき、方向の対比が最も効くとみなす（🛠）。
+ */
+export function directionBalance(items: Pick<Item, 'kind' | 'rotation' | 'apex' | 'size'>[]) {
+  let h = 0
+  let v = 0
+  let n = 0
+  for (const it of items) {
+    const { e, axis } = orientation(it)
+    if (e < 0.15) continue
+    n++
+    const c = Math.cos((2 * axis * Math.PI) / 180) // 1＝水平、-1＝垂直、0＝斜め
+    const w = e * it.size
+    if (c > 0) h += w * c
+    else v += w * -c
+  }
+  const total = h + v
+  return { horizontal: h, vertical: v, count: n, accent: total > 0 ? Math.min(h, v) / total : 0 }
+}
+
+export const ACCENT_TARGET = 0.2
+
+const direction: GlobalRule = {
+  id: 'direction',
+  kind: 'global',
+  label: '方向',
+  cost(items) {
+    const d = directionBalance(items)
+    if (d.count < 3) return 0
+    return Math.abs(d.accent - ACCENT_TARGET) * 3
+  },
+}
+
+export const RULES: Rule[] = [fidelity, grid, spacing, frame, balance, tension, extension, grammar, direction]
 
 export const DEFAULT_WEIGHTS: RuleWeights = {
   fidelity: 0.6,
@@ -299,6 +403,8 @@ export const DEFAULT_WEIGHTS: RuleWeights = {
   tension: 1,
   // 面積の対比は大きさを変えるので、ふだんは 0。対比モード「面積」で有効になる（layout.ts）
   extension: 0,
+  grammar: 0.4,
+  direction: 0.5,
 }
 
 export const RULE_LABELS: Record<RuleId, string> = Object.fromEntries(RULES.map((r) => [r.id, r.label])) as Record<

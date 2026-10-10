@@ -19,6 +19,29 @@ export type ContrastMode =
 export type ToneMode = 'color' | 'mono' | 'accent'
 
 /**
+ * 図形以外の道具。
+ * homage … アルバース「正方形へのオマージュ」（入れ子の正方形）
+ * fold   … アルバースの予備課程の「折り」：引いた線で画面を折り、片側の図形を鏡像として写す
+ * walker … クレー「線を散歩に連れ出す」：引いた線が自分で歩いて伸びていく
+ */
+export type ToolKind = ShapeKind | 'homage' | 'fold' | 'walker'
+
+/**
+ * グループの子の、親に対する相対位置。親の中心からの距離は親の大きさを 1 とした「親の座標系」で持つので、
+ * 親が動いたり回ったり大きさが変わったりしても形が崩れない。
+ */
+export interface Relation {
+  dx: number
+  dy: number
+  /** 親の大きさに対する倍率 */
+  scale: number
+  /** 親の回転に足す角度（度） */
+  rot: number
+  /** 親の色の明るさに足す量（-1..1）。省略時は子自身の色を使う */
+  light?: number
+}
+
+/**
  * ユーザーが入力した「生の」図形データ。
  * 位置はキャンバスに対する正規化座標 (0..1)、サイズは「ユニット」(1unit = min(W,H)/400) で保持し、
  * 画面サイズが変わってもレイアウトエンジンが再計算できるようにしている。
@@ -42,6 +65,9 @@ export interface Shape {
   seed: number
   /** 三角形の頂角（度）。省略時は 60（正三角形） */
   apex?: number
+  /** グループの親の id。子はレイアウトの対象にならず、親に付いて動く */
+  parent?: string
+  rel?: Relation
 }
 
 export type GridMode = '8' | '12' | 'golden'
@@ -55,6 +81,8 @@ export type RuleId =
   | 'balance' // E4/N1 視覚的重みの重心を目標点へ
   | 'tension' // N1 カンディンスキーの基礎平面：重いものを下（安定）か上（劇的）へ
   | 'extension' // N6 イッテンの面積の対比：色ごとの面積をゲーテの比率へ
+  | 'grammar' // N16 ハルトヴィヒの形の文法：□は縦横、△は斜め、○は自由に動く
+  | 'direction' // N19 ブラントの方向の対比：水平の量塊に垂直の一点（逆も）
 
 export type RuleWeights = Record<RuleId, number>
 
@@ -80,6 +108,8 @@ export interface Settings {
   contrastMode: ContrastMode
   /** 色調 */
   tone: ToneMode
+  /** Auto Flow の動き方：energy＝形ごとの物理エネルギー、chess＝形の文法に従ってグリッドを一手ずつ */
+  flowStyle: 'energy' | 'chess'
 }
 
 export interface View {
@@ -114,6 +144,8 @@ export interface DrawOp {
   color: RGB
   alpha: number
   apex: number
+  /** 乗算などの重ね合わせをせず、不透明に描く（オマージュの内側の正方形） */
+  solid?: boolean
   /** 0 = オリジナル、それ以外は万華鏡の複製 */
   copy: number
 }

@@ -20,6 +20,7 @@ const base: Settings = {
   tension: 0,
   contrastMode: 'none',
   tone: 'color',
+  flowStyle: 'energy',
 }
 
 let n = 0

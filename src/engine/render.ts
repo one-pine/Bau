@@ -1,6 +1,6 @@
 import { gridFractions } from './bauhaus'
 import { rgbCss } from './color'
-import { flowOffset } from './flow'
+import { chessOffset, flowOffset } from './flow'
 import { ellipseRadii, sphericalVertices, trapezoidPoints, trianglePoints } from './geometry'
 import type { DrawOp, Settings, Shape, ShapeKind, View, Visual } from './types'
 
@@ -16,6 +16,10 @@ export interface OpsInput {
   symAmt: number
   folds: number
   mirror: boolean
+  /** Auto Flow の動き方と、チェスの 1 マスの大きさ（px） */
+  flowStyle?: 'energy' | 'chess'
+  cellX?: number
+  cellY?: number
 }
 
 /** 現在の状態から描画命令の列を作る。Canvas / SVG / ヒットテストで共有する。 */
@@ -23,6 +27,15 @@ export function buildOps(o: OpsInput): DrawOp[] {
   const ops: DrawOp[] = []
   const cx = o.W / 2
   const cy = o.H / 2
+  const byId = new Map(o.shapes.map((s) => [s.id, s]))
+  const rootOf = (s: Shape) => {
+    let r = s
+    while (r.parent && byId.has(r.parent)) r = byId.get(r.parent)!
+    return r
+  }
+  /** グループの親ごとの動き。子は親と同じだけ動き、親の中心のまわりを一緒に回る */
+  const rootFlow = new Map<string, { dx: number; dy: number; drot: number; dscale: number; x: number; y: number }>()
+
   for (const s of o.shapes) {
     const v = o.visuals.get(s.id)
     if (!v) continue
@@ -31,13 +44,38 @@ export function buildOps(o: OpsInput): DrawOp[] {
     let size = v.size
     let rot = v.rotation
     if (o.flowAmt > 0.001) {
-      const f = flowOffset(s.kind, v.size, v.rotation, s.seed, o.time)
-      x += f.dx * o.flowAmt
-      y += f.dy * o.flowAmt
-      rot += f.drot * o.flowAmt
-      size *= 1 + (f.dscale - 1) * o.flowAmt
+      const root = rootOf(s)
+      let f = rootFlow.get(root.id)
+      if (!f) {
+        const rv = o.visuals.get(root.id) ?? v
+        const raw =
+          o.flowStyle === 'chess'
+            ? chessOffset(root.kind, rv.rotation, root.seed, o.time, o.cellX ?? o.W / 8, o.cellY ?? o.H / 8)
+            : flowOffset(root.kind, rv.size, rv.rotation, root.seed, o.time)
+        f = {
+          dx: raw.dx * o.flowAmt,
+          dy: raw.dy * o.flowAmt,
+          drot: raw.drot * o.flowAmt,
+          dscale: 1 + (raw.dscale - 1) * o.flowAmt,
+          x: rv.x,
+          y: rv.y,
+        }
+        rootFlow.set(root.id, f)
+      }
+      if (root !== s && f.drot !== 0) {
+        const a = (f.drot * Math.PI) / 180
+        const lx = (x - f.x) * f.dscale
+        const ly = (y - f.y) * f.dscale
+        x = f.x + lx * Math.cos(a) - ly * Math.sin(a)
+        y = f.y + lx * Math.sin(a) + ly * Math.cos(a)
+      }
+      x += f.dx
+      y += f.dy
+      rot += f.drot
+      size *= f.dscale
     }
-    ops.push({ id: s.id, kind: s.kind, x, y, size, rotation: rot, color: v.color, alpha: v.alpha, apex: v.apex, copy: 0 })
+    const solid = s.rel?.light !== undefined
+    ops.push({ id: s.id, kind: s.kind, x, y, size, rotation: rot, color: v.color, alpha: v.alpha, apex: v.apex, solid, copy: 0 })
 
     if (o.symAmt > 0.001) {
       const px = x - cx
@@ -61,6 +99,7 @@ export function buildOps(o: OpsInput): DrawOp[] {
             rotation: r + (a * 180) / Math.PI,
             color: v.color,
             apex: v.apex,
+            solid,
             // 複製は少しだけ透かして、中心付近で重なっても潰れないようにする
             alpha: v.alpha * o.symAmt * 0.82,
             copy: copy++,
@@ -122,6 +161,7 @@ export function tracePath(ctx: CanvasRenderingContext2D, kind: ShapeKind, size: 
 
 export function drawOp(ctx: CanvasRenderingContext2D, op: DrawOp, W: number, H: number) {
   ctx.save()
+  if (op.solid) ctx.globalCompositeOperation = 'source-over'
   ctx.translate(op.x, op.y)
   ctx.rotate((op.rotation * Math.PI) / 180)
   ctx.globalAlpha = op.alpha

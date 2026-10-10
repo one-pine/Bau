@@ -9,6 +9,7 @@
  *   球面三角形 どの向きでも幅が同じ形（ルーローの三角形）：転がるように回り続ける
  *   楕円 長軸に沿った楕円軌道
  */
+import { mulberry32 } from './bauhaus'
 import type { ShapeKind } from './types'
 
 export interface FlowOffset {
@@ -60,4 +61,58 @@ export function flowOffset(kind: ShapeKind, size: number, rotation: number, seed
       return { dx: ex * Math.cos(r) - ey * Math.sin(r), dy: ex * Math.sin(r) + ey * Math.cos(r), drot: 0, dscale: 1 }
     }
   }
+}
+
+// ───────────────────────── チェス（ハルトヴィヒの形の文法）
+
+const ROOK: [number, number][] = [
+  [1, 0],
+  [-1, 0],
+  [0, 1],
+  [0, -1],
+]
+const BISHOP: [number, number][] = [
+  [1, 1],
+  [1, -1],
+  [-1, 1],
+  [-1, -1],
+]
+
+/** 形ごとに許された一手の向き（docs/bauhaus-theory.md §10-1） */
+export function chessMoves(kind: ShapeKind, rotation: number): [number, number][] {
+  switch (kind) {
+    case 'square':
+    case 'trapezoid':
+      return ROOK
+    case 'triangle':
+      return BISHOP
+    case 'line': {
+      const r = (rotation * Math.PI) / 180
+      return [
+        [Math.round(Math.cos(r)), Math.round(Math.sin(r))],
+        [-Math.round(Math.cos(r)), -Math.round(Math.sin(r))],
+      ]
+    }
+    default:
+      return [...ROOK, ...BISHOP]
+  }
+}
+
+const BEAT = 1.6
+
+/**
+ * チェスの動き：拍ごとに、形の文法に従って隣のマスへ一手進み、次の拍で戻る（盤から離れていかない）。
+ * 拍の最初の 4 割で動き、残りは止まる。cellX / cellY はグリッドの 1 マスの大きさ（px）。
+ */
+export function chessOffset(kind: ShapeKind, rotation: number, seed: number, t: number, cellX: number, cellY: number): FlowOffset {
+  const phase = (seed % 997) / 997
+  const p = t / BEAT + phase
+  const beat = Math.floor(p)
+  const frac = p - beat
+  const pair = Math.floor(beat / 2)
+  const moves = chessMoves(kind, rotation)
+  const [mx, my] = moves[Math.floor(mulberry32(seed + pair * 7919)() * moves.length)]
+  const e = easeInOutCubic(Math.min(1, frac / 0.4))
+  const out = beat % 2 === 0 ? e : 1 - e
+  return { dx: mx * cellX * out, dy: my * cellY * out, drot: 0, dscale: 1 }
 }
