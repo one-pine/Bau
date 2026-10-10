@@ -1,13 +1,14 @@
 /**
- * Bauhaus Layout Engine
+ * Bauhaus Layout Engine — 基礎となる理論の部品
  *
- * 生の入力 (Shape[]) から、各図形が最終的に落ち着くべき姿 (Visual) を計算する純粋関数群。
+ * 配置の計算そのものは layout.ts（ソルバー）と rules.ts（ルール）にある。
+ * ここには、それらが使う理論の部品（グリッド、フィボナッチ、色の重さ、対比補正など）を置く。
  *   1. モジュール・グリッド・スナップ   … 8×8 / 12×12 / 黄金比分割の交点・対角線上へ吸着
  *   2. フィボナッチ・サイズ規格化       … 8, 13, 21, 34, 55, 89, 144, 233
  *   3. カンディンスキーの色彩・形態対応 … △=黄 □=赤 ○=青、色の視覚的重みで重心を中央へ
  *   4. イッテンの色彩対比               … 背景との明暗・補色対比が足りない色を自動補正
  */
-import { contrastRatio, hexToRgb, hslToRgb, luminance, rgbToHsl } from './color'
+import { contrastRatio, hslToRgb, luminance, rgbToHsl } from './color'
 import type { GridMode, RGB, Settings, Shape, ShapeKind, Visual } from './types'
 
 export const PHI = (1 + Math.sqrt(5)) / 2
@@ -175,161 +176,8 @@ export function mulberry32(seed: number) {
   }
 }
 
-// ───────────────────────── レイアウト本体
+// ───────────────────────── 色の解決（配置は layout.ts / rules.ts）
 
 export function resolveColor(shape: Shape, settings: Settings): string {
   return settings.correspondence && !shape.colorLocked ? KANDINSKY[shape.kind] : shape.color
-}
-
-/**
- * 全図形の目標状態を計算する。
- * anchorId は直前に追加・変更された図形で、重心調整の際に「動かさない」図形として扱う。
- */
-export function computeLayout(
-  shapes: Shape[],
-  settings: Settings,
-  W: number,
-  H: number,
-  anchorId: string | null,
-): Map<string, Visual> {
-  const out = new Map<string, Visual>()
-  if (W <= 0 || H <= 0) return out
-  const u = unitPx(W, H)
-  const bg = hexToRgb(settings.background)
-
-  if (settings.mode === 'chaos') {
-    for (const s of shapes) {
-      const r = mulberry32(s.seed ^ settings.chaosSeed)
-      out.set(s.id, {
-        x: clamp(s.x + (r() - 0.5) * 0.5, 0.04, 0.96) * W,
-        y: clamp(s.y + (r() - 0.5) * 0.5, 0.04, 0.96) * H,
-        size: s.size * (0.5 + r() * 1.2) * u,
-        rotation: s.rotation + (r() - 0.5) * 140,
-        color: hexToRgb(s.color),
-        alpha: s.alpha * (0.65 + r() * 0.35),
-      })
-    }
-    return out
-  }
-
-  // 1 & 2: グリッドスナップ + フィボナッチ
-  const pts = snapPoints(W, H, settings.grid)
-  const occ = new Array(pts.length).fill(0)
-  const penalty = 0.2 * Math.min(W, H)
-  const order = [...shapes].sort((a, b) => (a.id === anchorId ? -1 : b.id === anchorId ? 1 : 0))
-  const working: { s: Shape; v: Visual; fib: number }[] = []
-
-  for (const s of order) {
-    const px = s.x * W
-    const py = s.y * H
-    let bi = 0
-    let bc = Infinity
-    pts.forEach((p, i) => {
-      const c = Math.hypot(p.x - px, p.y - py) * (p.diagonal ? 0.88 : 1) + occ[i] * penalty
-      if (c < bc) {
-        bc = c
-        bi = i
-      }
-    })
-    occ[bi]++
-    const fib = snapFib(s.size)
-    working.push({
-      s,
-      fib,
-      v: {
-        x: pts[bi].x,
-        y: pts[bi].y,
-        size: fib * u,
-        rotation: s.kind === 'circle' ? 0 : Math.round(s.rotation / 45) * 45,
-        color: hexToRgb(resolveColor(s, settings)),
-        alpha: s.alpha,
-      },
-    })
-  }
-
-  // 3: 視覚的重みによる重心バランス (反転・シフト・サイズ段階変更)
-  balance(working, W, H, u, anchorId)
-
-  // 4: 背景との対比補正
-  for (const w of working) {
-    w.v.color = ittenAdjust(w.v.color, bg, w.s.contrast)
-    out.set(w.s.id, w.v)
-  }
-  return out
-}
-
-function balance(
-  items: { s: Shape; v: Visual; fib: number }[],
-  W: number,
-  H: number,
-  u: number,
-  anchorId: string | null,
-) {
-  if (items.length < 2) return
-  const cx = W / 2
-  const cy = H / 2
-  const tol = 0.02 * Math.min(W, H)
-  const mirrored = new Set<string>()
-  const resized = new Set<string>()
-
-  let M = 0
-  let MX = 0
-  let MY = 0
-  const masses = items.map((it) => visualMass(it.s.kind, it.v))
-  items.forEach((it, i) => {
-    M += masses[i]
-    MX += masses[i] * it.v.x
-    MY += masses[i] * it.v.y
-  })
-  if (M <= 0) return
-
-  for (let iter = 0; iter < items.length * 2 + 4; iter++) {
-    const dx = MX / M - cx
-    const dy = MY / M - cy
-    const err = Math.hypot(dx, dy)
-    if (err < tol) return
-
-    let best: { i: number; x: number; y: number; fib: number; m: number; err: number } | null = null
-    items.forEach((it, i) => {
-      if (it.s.id === anchorId) return
-      const m0 = masses[i]
-      const cands: { x: number; y: number; fib: number }[] = []
-      if (!mirrored.has(it.s.id)) {
-        cands.push({ x: W - it.v.x, y: it.v.y, fib: it.fib })
-        cands.push({ x: it.v.x, y: H - it.v.y, fib: it.fib })
-        cands.push({ x: W - it.v.x, y: H - it.v.y, fib: it.fib })
-      }
-      if (!resized.has(it.s.id)) {
-        const heavySide = (it.v.x - cx) * dx + (it.v.y - cy) * dy > 0
-        cands.push({ x: it.v.x, y: it.v.y, fib: fibStep(it.fib, heavySide ? -1 : 1) })
-      }
-      for (const c of cands) {
-        const m1 = visualMass(it.s.kind, { ...it.v, size: c.fib * u })
-        const nM = M - m0 + m1
-        const nx = (MX - m0 * it.v.x + m1 * c.x) / nM - cx
-        const ny = (MY - m0 * it.v.y + m1 * c.y) / nM - cy
-        const e = Math.hypot(nx, ny)
-        if (!best || e < best.err) best = { i, ...c, m: m1, err: e }
-      }
-    })
-    if (!best) return
-    const b = best as { i: number; x: number; y: number; fib: number; m: number; err: number }
-    if (b.err > err - 1) return
-
-    const it = items[b.i]
-    if (b.fib !== it.fib) resized.add(it.s.id)
-    else mirrored.add(it.s.id)
-    M += b.m - masses[b.i]
-    MX += b.m * b.x - masses[b.i] * it.v.x
-    MY += b.m * b.y - masses[b.i] * it.v.y
-    masses[b.i] = b.m
-    it.v.x = b.x
-    it.v.y = b.y
-    it.fib = b.fib
-    it.v.size = b.fib * u
-  }
-}
-
-function clamp(v: number, lo: number, hi: number) {
-  return Math.min(hi, Math.max(lo, v))
 }

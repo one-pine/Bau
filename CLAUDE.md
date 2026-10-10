@@ -20,8 +20,11 @@ npx cap open android / ios
 
 ## 構成
 - `src/engine/` … 理論エンジン。**描画や React に依存しない純粋関数に保つ**（Godot 移植とテストのため）
-  - `bauhaus.ts` レイアウト理論、`flow.ts` 動き、`render.ts` Canvas 描画とヒットテスト、`export.ts` 書き出し、`color.ts` 色計算
+  - `rules.ts` レイアウト・ルール（各理論がコストを返す）、`layout.ts` ソルバー（初期配置＋局所探索）、`bauhaus.ts` 理論の部品（グリッド・フィボナッチ・色の重さ・対比）
+  - `features.ts` 画面の特徴量（指揮者用）、`flow.ts` 動き、`render.ts` Canvas 描画・天秤・ヒットテスト、`export.ts` 書き出し、`color.ts` 色計算
+  - **新しい理論は `rules.ts` にルールとして足す**（`RuleId` を `types.ts` に追加、`DEFAULT_WEIGHTS` に重み、テストを書く）
 - `src/state/store.ts` … 状態（useSyncExternalStore）、undo/redo、localStorage 保存
+- `src/state/activity.ts` … 操作の記録（指揮者の「飽き」判定用、端末内のみ）、`src/state/runtime.ts` … 構図の評価を UI へ渡す
 - `src/components/` … CanvasStage（描画ループとジェスチャー）、TopBar、Toolbar、EditSheet、SettingsSheet
 - `src/platform.ts` / `src/native.ts` … Web とネイティブの差（書き出しは共有シート、触覚、戻るボタン、ステータスバー）
 - `android/`, `ios/` … Capacitor のネイティブプロジェクト。アプリ ID `com.lomaloma.bau`（変更不可）
@@ -35,5 +38,5 @@ npx cap open android / ios
 - 作業ブランチ：`claude/cloud-session-credits-3r1r27`
 
 ## 次にやること
-フェーズ 1：エンジンを「ルール＋コスト関数＋局所探索」に作り直す（`docs/roadmap.md` §2-1, §3）。
-重みは連続値、各ルールのコストを記録、画面の特徴量と操作の記録を用意する（指揮者のため）。
+フェーズ 1（エンジンの作り直し）は完了。次はフェーズ 2「形と色の語彙」：
+N2 線の温度、N3 角度と色、N4 6 形 6 色、N5 イッテンの 7 つの対比、N6 面積の対比、N25 色調モード（`docs/roadmap.md` §3）。

@@ -26,6 +26,17 @@ export interface Shape {
 
 export type GridMode = '8' | '12' | 'golden'
 
+/** レイアウト（配置）を評価するルールの ID。docs/roadmap.md の番号との対応はコメント参照 */
+export type RuleId =
+  | 'fidelity' // ユーザーの意図（置いた位置・大きさ）を尊重する
+  | 'grid' // E1 モジュール・グリッド（対角線上の点を好む）
+  | 'spacing' // 重なり・同じ点への集中を避ける
+  | 'frame' // 画面の枠からはみ出さない
+  | 'balance' // E4/N1 視覚的重みの重心を目標点へ
+  | 'tension' // N1 カンディンスキーの基礎平面：重いものを下（安定）か上（劇的）へ
+
+export type RuleWeights = Record<RuleId, number>
+
 export interface Settings {
   mode: 'order' | 'chaos'
   grid: GridMode
@@ -38,6 +49,12 @@ export interface Settings {
   mirror: boolean
   flow: boolean
   chaosSeed: number
+  /** 各ルールの重み（連続値。0 で無効） */
+  weights: RuleWeights
+  /** 均衡の目標：0＝画面中央（静的な均衡）… 1＝黄金分割点（動的な均衡） */
+  dynamism: number
+  /** 基礎平面の緊張：-1＝安定（重いものは下・右）… +1＝劇的（重いものを上・左） */
+  tension: number
 }
 
 export interface View {

@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest'
 import {
   centerOfMass,
   colorWeight,
-  computeLayout,
   FIB,
   gridFractions,
   ittenAdjust,
@@ -10,6 +9,8 @@ import {
   snapFib,
   snapPoints,
 } from './bauhaus'
+import { computeLayout } from './layout'
+import { DEFAULT_WEIGHTS } from './rules'
 import { contrastRatio, hexToRgb } from './color'
 import type { Settings, Shape } from './types'
 
@@ -25,6 +26,9 @@ const settings: Settings = {
   mirror: true,
   flow: false,
   chaosSeed: 1,
+  weights: DEFAULT_WEIGHTS,
+  dynamism: 0,
+  tension: 0,
 }
 
 const shape = (p: Partial<Shape>): Shape => ({
@@ -119,7 +123,7 @@ describe('computeLayout', () => {
   it('pulls the visual centre of mass towards the middle', () => {
     // 全部を左上に寄せて置く → バランス調整で重心が中央に近づくはず
     const shapes = [
-      shape({ x: 0.1, y: 0.1, size: 144, kind: 'circle' }),
+      shape({ x: 0.1, y: 0.1, size: 55, kind: 'circle' }),
       shape({ x: 0.2, y: 0.15, size: 89, kind: 'square' }),
       shape({ x: 0.15, y: 0.25, size: 55, kind: 'triangle' }),
       shape({ x: 0.3, y: 0.1, size: 34, kind: 'circle' }),

@@ -1,6 +1,8 @@
 import { useSyncExternalStore } from 'react'
 import { FIB, PALETTE } from '../engine/bauhaus'
+import { DEFAULT_WEIGHTS } from '../engine/rules'
 import type { Settings, Shape, ShapeKind, View } from '../engine/types'
+import { recordActivity, type ActivityType } from './activity'
 
 export interface AppState {
   shapes: Shape[]
@@ -30,6 +32,9 @@ const defaultSettings: Settings = {
   mirror: true,
   flow: false,
   chaosSeed: 1,
+  weights: DEFAULT_WEIGHTS,
+  dynamism: 0.4,
+  tension: -0.3,
 }
 
 export const defaultView: View = { zoom: 1, rotation: 0, panX: 0, panY: 0 }
@@ -39,7 +44,9 @@ function load(): Pick<AppState, 'shapes' | 'settings'> {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (raw) {
       const p = JSON.parse(raw)
-      return { shapes: Array.isArray(p.shapes) ? p.shapes : [], settings: { ...defaultSettings, ...p.settings } }
+      const settings = { ...defaultSettings, ...p.settings }
+      settings.weights = { ...DEFAULT_WEIGHTS, ...p.settings?.weights }
+      return { shapes: Array.isArray(p.shapes) ? p.shapes : [], settings }
     }
   } catch {
     /* プライベートモード等では保存なしで動かす */
@@ -92,6 +99,9 @@ export function useStore<T>(sel: (s: AppState) => T): T {
 
 const uid = () => Math.random().toString(36).slice(2, 10)
 
+/** 連続して起きる操作（ドラッグ・スライダー・ズーム）は 0.4 秒に 1 回だけ記録する */
+const log = (type: ActivityType, continuous = false) => recordActivity(type, Date.now(), continuous ? 400 : 0)
+
 /** 変更前のスナップショットを履歴に積む（ドラッグ開始時など、1 操作につき 1 回呼ぶ） */
 export function checkpoint() {
   set({ past: [...state.past.slice(-60), state.shapes], future: [] })
@@ -116,11 +126,13 @@ export const actions = {
       kind,
     }
     set({ shapes: [...state.shapes, shape], anchorId: shape.id, selectedId: null })
+    log('add')
     return shape.id
   },
 
   /** 履歴を積まずに更新（ドラッグ中・スライダー操作中） */
   updateShape(id: string, patch: Partial<Shape>) {
+    log('x' in patch || 'y' in patch ? 'move' : 'edit', true)
     set({
       shapes: state.shapes.map((s) => (s.id === id ? { ...s, ...patch } : s)),
       anchorId: id,
@@ -128,6 +140,7 @@ export const actions = {
   },
 
   removeShape(id: string) {
+    log('remove')
     checkpoint()
     set({
       shapes: state.shapes.filter((s) => s.id !== id),
@@ -157,6 +170,7 @@ export const actions = {
   toggleSettings: () => set({ settingsOpen: !state.settingsOpen, editorOpen: false }),
 
   setSettings(patch: Partial<Settings>) {
+    log('symmetry' in patch ? 'symmetry' : 'flow' in patch ? 'flow' : 'mode' in patch ? 'mode' : 'settings', true)
     set({ settings: { ...state.settings, ...patch }, anchorId: null })
   },
 
@@ -168,10 +182,14 @@ export const actions = {
     })
   },
 
-  setView: (view: View) => set({ view }),
+  setView(view: View) {
+    log('zoom', true)
+    set({ view })
+  },
 
   clear() {
     if (!state.shapes.length) return
+    log('clear')
     checkpoint()
     set({ shapes: [], selectedId: null, editorOpen: false, anchorId: null })
   },
@@ -179,6 +197,7 @@ export const actions = {
   undo() {
     const prev = state.past[state.past.length - 1]
     if (!prev) return
+    log('undo')
     set({
       shapes: prev,
       past: state.past.slice(0, -1),
@@ -192,6 +211,7 @@ export const actions = {
   redo() {
     const next = state.future[0]
     if (!next) return
+    log('redo')
     set({ shapes: next, past: [...state.past, state.shapes], future: state.future.slice(1), anchorId: null })
   },
 }

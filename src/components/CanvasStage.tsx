@@ -1,5 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { centerOfMass, computeLayout, unitPx } from '../engine/bauhaus'
+import { unitPx } from '../engine/bauhaus'
+import { computeFeatures } from '../engine/features'
+import { solveLayout } from '../engine/layout'
+import { visualBalance } from '../engine/rules'
 import { lerpRgb } from '../engine/color'
 import { blendOp, isDark } from '../engine/export'
 import {
@@ -14,6 +17,7 @@ import {
 } from '../engine/render'
 import type { DrawOp, ShapeKind, View, Visual } from '../engine/types'
 import { haptic } from '../platform'
+import { runtime } from '../state/runtime'
 import { actions, checkpoint, store, useStore } from '../state/store'
 
 /** 書き出しなど、キャンバス外から最新フレームを参照するための共有ランタイム */
@@ -37,6 +41,9 @@ type Gesture =
       baseView: View
     }
 
+/** 上のバー＋状態ラベルと、下のツールバーで隠れる幅。図形はこの内側に収める（枠のルール） */
+const UI_INSETS = { top: 100, right: 0, bottom: 72, left: 0 }
+
 const TAP_SLOP = 9
 const LONG_PRESS_MS = 480
 /** 1 秒あたりの追従率。大きいほど速く目標へ落ち着く */
@@ -50,12 +57,19 @@ export default function CanvasStage() {
   const settings = useStore((s) => s.settings)
   const anchorId = useStore((s) => s.anchorId)
 
-  const targets = useMemo(
-    () => computeLayout(shapes, settings, size.W, size.H, anchorId),
+  const layout = useMemo(
+    () => solveLayout(shapes, settings, size.W, size.H, anchorId, UI_INSETS),
     [shapes, settings, size, anchorId],
   )
+  const targets = layout.visuals
   const targetsRef = useRef(targets)
   targetsRef.current = targets
+
+  // 理論ガイド・指揮者のために、いまの画面の評価を共有する
+  useEffect(() => {
+    const entries = shapes.flatMap((s) => (targets.has(s.id) ? [{ kind: s.kind, v: targets.get(s.id)! }] : []))
+    runtime.set({ report: layout.report, features: computeFeatures(entries, size.W, size.H) })
+  }, [layout, shapes, targets, size])
 
   const visuals = useRef(new Map<string, Visual>())
   const pointers = useRef(new Map<number, Pt>())
@@ -157,8 +171,13 @@ export default function CanvasStage() {
       for (const op of ops) drawOp(ctx, op, W, H)
       ctx.globalCompositeOperation = 'source-over'
 
-      const com = centerOfMass(shapes.flatMap((s) => (vis.has(s.id) ? [{ kind: s.kind, v: vis.get(s.id)! }] : [])))
-      drawBalance(ctx, com, W, H, gridAmt, dark)
+      const bal = visualBalance(
+        shapes.flatMap((s) => (vis.has(s.id) ? [{ kind: s.kind, v: vis.get(s.id)! }] : [])),
+        settings,
+        W,
+        H,
+      )
+      drawBalance(ctx, shapes.length >= 2 ? bal : null, W, H, gridAmt, dark)
 
       const ink = dark ? '#ffffff' : '#111111'
       // 選択中の図形

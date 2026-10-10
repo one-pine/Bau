@@ -159,31 +159,75 @@ export function drawGrid(ctx: CanvasRenderingContext2D, settings: Settings, W: n
   ctx.restore()
 }
 
-/** 重心（視覚的重み）と画面中心のマーカー */
+/**
+ * N15 天秤（クレーの「重さと対重」）。均衡の目標点を支点にして、知覚上の重心のずれで竿が傾く。
+ * 重心が目標点より右にあれば右の皿が下がる。上下のずれは支点から重心への点線で示す。
+ */
 export function drawBalance(
   ctx: CanvasRenderingContext2D,
-  com: { x: number; y: number } | null,
+  balance: { center: { x: number; y: number }; target: { x: number; y: number } } | null,
   W: number,
   H: number,
   alpha: number,
   dark: boolean,
 ) {
-  if (!com || alpha <= 0.001) return
+  if (!balance || alpha <= 0.001) return
+  const { center: c, target: t } = balance
   const ink = dark ? '255,255,255' : '0,0,0'
+  const minDim = Math.min(W, H)
+  const tilt = Math.max(-0.45, Math.min(0.45, ((c.x - t.x) / minDim) * 6))
+  const L = 34
+
   ctx.save()
   ctx.globalAlpha = alpha
-  ctx.strokeStyle = `rgba(${ink},0.35)`
   ctx.lineWidth = 1
+
+  // 画面中心（静的な均衡の基準）
+  ctx.strokeStyle = `rgba(${ink},0.25)`
   ctx.beginPath()
-  ctx.arc(W / 2, H / 2, 6, 0, Math.PI * 2)
+  ctx.arc(W / 2, H / 2, 4, 0, Math.PI * 2)
   ctx.stroke()
+
+  // 支点
+  ctx.fillStyle = `rgba(${ink},0.55)`
+  ctx.beginPath()
+  ctx.moveTo(t.x, t.y)
+  ctx.lineTo(t.x + 7, t.y + 10)
+  ctx.lineTo(t.x - 7, t.y + 10)
+  ctx.closePath()
+  ctx.fill()
+
+  // 竿と皿
+  ctx.translate(t.x, t.y)
+  ctx.rotate(tilt)
   ctx.strokeStyle = `rgba(${ink},0.7)`
+  ctx.lineWidth = 1.5
   ctx.beginPath()
-  ctx.moveTo(com.x - 7, com.y)
-  ctx.lineTo(com.x + 7, com.y)
-  ctx.moveTo(com.x, com.y - 7)
-  ctx.lineTo(com.x, com.y + 7)
+  ctx.moveTo(-L, 0)
+  ctx.lineTo(L, 0)
   ctx.stroke()
+  ctx.fillStyle = `rgba(${ink},0.7)`
+  for (const e of [-L, L]) {
+    ctx.beginPath()
+    ctx.arc(e, 0, 3, 0, Math.PI * 2)
+    ctx.fill()
+  }
+  ctx.restore()
+
+  // 重心と、支点からのずれ
+  ctx.save()
+  ctx.globalAlpha = alpha
+  ctx.strokeStyle = `rgba(${ink},0.45)`
+  ctx.setLineDash([2, 3])
+  ctx.beginPath()
+  ctx.moveTo(t.x, t.y)
+  ctx.lineTo(c.x, c.y)
+  ctx.stroke()
+  ctx.setLineDash([])
+  ctx.fillStyle = `rgba(${ink},0.85)`
+  ctx.beginPath()
+  ctx.arc(c.x, c.y, 3.5, 0, Math.PI * 2)
+  ctx.fill()
   ctx.restore()
 }
 
