@@ -131,7 +131,7 @@ export default function CanvasStage() {
         alive.add(s.id)
         let v = vis.get(s.id)
         if (!v) {
-          v = { x: s.x * W, y: s.y * H, size: 0, rotation: t.rotation - 30, color: t.color, alpha: 0 }
+          v = { x: s.x * W, y: s.y * H, size: 0, rotation: t.rotation - 30, color: t.color, alpha: 0, apex: t.apex }
           vis.set(s.id, v)
         }
         v.x += (t.x - v.x) * kp
@@ -141,6 +141,7 @@ export default function CanvasStage() {
         dr = ((((dr + 180) % 360) + 360) % 360) - 180
         v.rotation += dr * kp
         v.alpha += (t.alpha - v.alpha) * kp
+        v.apex += (t.apex - v.apex) * kp
         v.color = lerpRgb(v.color, t.color, kc)
       }
       for (const id of vis.keys()) if (!alive.has(id)) vis.delete(id)

@@ -1,11 +1,17 @@
 import { ArrowUpToLine, Copy, Lock, Trash2, Unlock } from 'lucide-react'
-import { PALETTE, resolveColor, snapFib } from '../engine/bauhaus'
+import { PALETTE, snapFib } from '../engine/bauhaus'
+import { DEFAULT_APEX, MAX_APEX, MIN_APEX } from '../engine/geometry'
+import { resolveColor } from '../engine/palette'
 import type { ShapeKind } from '../engine/types'
 import { actions, checkpoint, useStore } from '../state/store'
 import Sheet from './Sheet'
-import { SectionTitle, ShapeGlyph, Slider } from './ui'
+import { SectionTitle, SHAPE_LABELS, ShapeGlyph, Slider } from './ui'
 
-const KINDS: ShapeKind[] = ['circle', 'triangle', 'square', 'line']
+const KINDS: ShapeKind[] = ['circle', 'triangle', 'square', 'line', 'trapezoid', 'spherical', 'ellipse']
+
+/** カンディンスキーの角度と色：鋭角＝黄、直角＝赤、鈍角＝青 */
+const apexLabel = (a: number) =>
+  `${Math.round(a)}° ${a <= 60 ? '鋭角・黄' : a < 82 ? '黄→赤' : a <= 98 ? '直角・赤' : a < 120 ? '赤→青' : '鈍角・青'}`
 
 export default function EditSheet() {
   const id = useStore((s) => s.selectedId)
@@ -22,26 +28,40 @@ export default function EditSheet() {
       <div className="space-y-5">
         <div>
           <SectionTitle>形態 Form</SectionTitle>
-          <div className="grid grid-cols-4 border border-ink">
+          <div className="grid grid-cols-7 border border-ink">
             {KINDS.map((k, i) => (
               <button
                 key={k}
                 type="button"
-                aria-label={k}
+                aria-label={SHAPE_LABELS[k]}
+                title={SHAPE_LABELS[k]}
                 onClick={() => {
                   checkpoint()
                   update({ kind: k })
                 }}
                 className={[
-                  'flex h-12 items-center justify-center',
+                  'flex h-11 items-center justify-center',
                   i > 0 ? 'border-l border-ink' : '',
                   shape.kind === k ? 'bg-ink' : '',
                 ].join(' ')}
               >
-                <ShapeGlyph kind={k} color={shape.kind === k ? '#f2eee3' : undefined} />
+                <ShapeGlyph kind={k} size={20} color={shape.kind === k ? '#f2eee3' : undefined} />
               </button>
             ))}
           </div>
+          {shape.kind === 'triangle' && (
+            <div className="mt-3">
+              <Slider
+                label="頂角 Angle"
+                value={shape.apex ?? DEFAULT_APEX}
+                min={MIN_APEX}
+                max={MAX_APEX}
+                format={apexLabel}
+                onStart={checkpoint}
+                onChange={(v) => update({ apex: v })}
+              />
+            </div>
+          )}
         </div>
 
         <div>
@@ -61,7 +81,7 @@ export default function EditSheet() {
               </button>
             )}
           </div>
-          <div className="grid grid-cols-8 gap-1.5">
+          <div className="grid grid-cols-9 gap-1.5">
             {PALETTE.map((c) => (
               <button
                 key={c}

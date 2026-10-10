@@ -1,6 +1,7 @@
 import { gridFractions } from './bauhaus'
 import { rgbCss } from './color'
 import { flowOffset } from './flow'
+import { ellipseRadii, sphericalVertices, trapezoidPoints, trianglePoints } from './geometry'
 import type { DrawOp, Settings, Shape, ShapeKind, View, Visual } from './types'
 
 export interface OpsInput {
@@ -36,7 +37,7 @@ export function buildOps(o: OpsInput): DrawOp[] {
       rot += f.drot * o.flowAmt
       size *= 1 + (f.dscale - 1) * o.flowAmt
     }
-    ops.push({ id: s.id, kind: s.kind, x, y, size, rotation: rot, color: v.color, alpha: v.alpha, copy: 0 })
+    ops.push({ id: s.id, kind: s.kind, x, y, size, rotation: rot, color: v.color, alpha: v.alpha, apex: v.apex, copy: 0 })
 
     if (o.symAmt > 0.001) {
       const px = x - cx
@@ -59,6 +60,7 @@ export function buildOps(o: OpsInput): DrawOp[] {
             size,
             rotation: r + (a * 180) / Math.PI,
             color: v.color,
+            apex: v.apex,
             // 複製は少しだけ透かして、中心付近で重なっても潰れないようにする
             alpha: v.alpha * o.symAmt * 0.82,
             copy: copy++,
@@ -74,8 +76,13 @@ export function lineThickness(size: number, W: number, H: number) {
   return Math.max(2, size * 0.045 + (Math.min(W, H) / 400) * 2)
 }
 
-export function tracePath(ctx: CanvasRenderingContext2D, kind: ShapeKind, size: number) {
+export function tracePath(ctx: CanvasRenderingContext2D, kind: ShapeKind, size: number, apex?: number) {
   const h = size / 2
+  const poly = (pts: [number, number][]) => {
+    ctx.moveTo(pts[0][0], pts[0][1])
+    for (let k = 1; k < pts.length; k++) ctx.lineTo(pts[k][0], pts[k][1])
+    ctx.closePath()
+  }
   ctx.beginPath()
   switch (kind) {
     case 'circle':
@@ -84,12 +91,26 @@ export function tracePath(ctx: CanvasRenderingContext2D, kind: ShapeKind, size: 
     case 'square':
       ctx.rect(-h, -h, size, size)
       break
-    case 'triangle': {
-      const th = (size * Math.sqrt(3)) / 2
-      ctx.moveTo(0, (-th * 2) / 3)
-      ctx.lineTo(h, th / 3)
-      ctx.lineTo(-h, th / 3)
+    case 'triangle':
+      poly(trianglePoints(size, apex))
+      break
+    case 'trapezoid':
+      poly(trapezoidPoints(size))
+      break
+    case 'spherical': {
+      // ルーローの三角形：各辺を、向かいの頂点を中心とする半径 size の円弧で描く
+      const [top, right, left] = sphericalVertices(size)
+      const d = Math.PI / 180
+      ctx.moveTo(right[0], right[1])
+      ctx.arc(top[0], top[1], size, 60 * d, 120 * d)
+      ctx.arc(right[0], right[1], size, 180 * d, 240 * d)
+      ctx.arc(left[0], left[1], size, 300 * d, 360 * d)
       ctx.closePath()
+      break
+    }
+    case 'ellipse': {
+      const { rx, ry } = ellipseRadii(size)
+      ctx.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2)
       break
     }
     case 'line':
@@ -104,7 +125,7 @@ export function drawOp(ctx: CanvasRenderingContext2D, op: DrawOp, W: number, H: 
   ctx.translate(op.x, op.y)
   ctx.rotate((op.rotation * Math.PI) / 180)
   ctx.globalAlpha = op.alpha
-  tracePath(ctx, op.kind, op.size)
+  tracePath(ctx, op.kind, op.size, op.apex)
   if (op.kind === 'line') {
     ctx.strokeStyle = rgbCss(op.color)
     ctx.lineWidth = lineThickness(op.size, W, H)

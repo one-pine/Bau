@@ -1,15 +1,16 @@
 /**
  * レイアウト・ソルバー
  *
- * 1. 色の段：カンディンスキーの形と色の対応 → イッテンの対比補正（位置に依存しない）
+ * 1. 色の段（palette.ts）：形と色の対応 → 背景との対比補正 → イッテンの対比モード → 色調（位置に依存しない）
  * 2. 初期配置：各図形を、ルールのコストが最も低いグリッド点へ順に置く（貪欲法）
  * 3. 局所探索：図形を 1 つずつ「近くの交点へ移す／反転する／フィボナッチ 1 段変える／ほかの図形と入れ替える」を試し、
  *    重み付きコストの合計が下がる手を採用する。改善がなくなるまで繰り返す
  *
  * 直前に操作された図形（anchor）は動かさない。ほかの図形が連鎖的に動いて全体を整える。
  */
-import { FIB, ittenAdjust, mulberry32, resolveColor, snapFib, snapPoints, unitPx, type SnapPoint } from './bauhaus'
-import { hexToRgb } from './color'
+import { FIB, mulberry32, snapFib, snapPoints, unitPx, type SnapPoint } from './bauhaus'
+import { clampApex } from './geometry'
+import { resolveColors } from './palette'
 import { DEFAULT_WEIGHTS, NO_INSETS, RULES, balanceTarget, makeItem, perceivedCenter, type Insets, type Item, type RuleContext } from './rules'
 import type { RuleId, Settings, Shape, Visual } from './types'
 
@@ -53,32 +54,37 @@ export function solveLayout(
   const u = unitPx(W, H)
 
   if (settings.mode === 'chaos') {
-    for (const s of shapes) {
+    // カオスでは理論を外す（ユーザーの色そのまま）。ただし色調（モノトーン）は保つ
+    const colors = resolveColors(shapes, settings, { theory: false })
+    shapes.forEach((s, i) => {
       const r = mulberry32(s.seed ^ settings.chaosSeed)
       visuals.set(s.id, {
         x: clamp(s.x + (r() - 0.5) * 0.5, 0.04, 0.96) * W,
         y: clamp(s.y + (r() - 0.5) * 0.5, 0.04, 0.96) * H,
         size: s.size * (0.5 + r() * 1.2) * u,
         rotation: s.rotation + (r() - 0.5) * 140,
-        color: hexToRgb(s.color),
+        color: colors[i],
         alpha: s.alpha * (0.65 + r() * 0.35),
+        apex: clampApex((s.apex ?? 60) + (r() - 0.5) * 60),
       })
-    }
+    })
     return { visuals, report: null }
   }
 
   const points = snapPoints(W, H, settings.grid)
   const ctx: RuleContext = { W, H, minDim: Math.min(W, H), points, settings, insets }
   const weights = { ...DEFAULT_WEIGHTS, ...settings.weights }
+  // 対比モード「面積」のときは、面積の対比ルールを有効にする（ふだんは大きさを変えないよう 0）
+  if (settings.contrastMode === 'extension') weights.extension = Math.max(weights.extension, 1.5)
   const local = RULES.filter((r) => r.kind === 'local' && weights[r.id] > 0)
   const global = RULES.filter((r) => r.kind === 'global' && weights[r.id] > 0)
-  const bg = hexToRgb(settings.background)
   const neighbors = buildNeighbors(points)
   const mirrorOf = buildMirrors(points, W, H)
 
   // 1. 色の段
-  const items: Item[] = shapes.map((s) => {
-    const color = ittenAdjust(hexToRgb(resolveColor(s, settings)), bg, s.contrast)
+  const colors = resolveColors(shapes, settings, { theory: true })
+  const items: Item[] = shapes.map((s, i) => {
+    const color = colors[i]
     const fib = FIB.indexOf(snapFib(s.size))
     return makeItem(s, {
       rawX: s.x * W,
@@ -90,6 +96,7 @@ export function solveLayout(
       y: 0,
       size: FIB[fib] * u,
       rotation: s.kind === 'circle' ? 0 : Math.round(s.rotation / 45) * 45,
+      apex: clampApex(s.apex),
       color,
       alpha: s.alpha,
       anchor: s.id === anchorId,
@@ -213,7 +220,15 @@ export function solveLayout(
   }
 
   for (const it of items) {
-    visuals.set(it.shape.id, { x: it.x, y: it.y, size: it.size, rotation: it.rotation, color: it.color, alpha: it.alpha })
+    visuals.set(it.shape.id, {
+      x: it.x,
+      y: it.y,
+      size: it.size,
+      rotation: it.rotation,
+      color: it.color,
+      alpha: it.alpha,
+      apex: it.apex,
+    })
   }
   return { visuals, report: buildReport(items, ctx, weights, moves) }
 }

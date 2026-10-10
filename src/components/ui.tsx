@@ -27,7 +27,7 @@ export function IconButton({
       onClick={onClick}
       className={[
         'flex h-12 shrink-0 items-center justify-center gap-1.5 text-[11px] font-medium tracking-[0.12em] uppercase transition-colors',
-        wide ? 'px-3' : 'w-[min(48px,11vw)]',
+        wide ? 'px-3' : 'w-[min(48px,10vw)]',
         active ? 'bg-ink text-paper ring-1 ring-inset ring-paper/30' : 'bg-paper text-ink hover:bg-ink/5',
         disabled ? 'opacity-30' : '',
       ].join(' ')}
@@ -44,9 +44,22 @@ export function ShapeGlyph({ kind, size = 22, color }: { kind: ShapeKind; size?:
       {kind === 'circle' && <circle cx="12" cy="12" r="10" fill={c} />}
       {kind === 'square' && <rect x="3" y="3" width="18" height="18" fill={c} />}
       {kind === 'triangle' && <polygon points="12,2.5 22.5,21 1.5,21" fill={c} />}
+      {kind === 'trapezoid' && <polygon points="7,5.5 17,5.5 22,18.5 2,18.5" fill={c} />}
+      {kind === 'spherical' && <path d="M22 18.3 A20 20 0 0 1 2 18.3 A20 20 0 0 1 12 1 A20 20 0 0 1 22 18.3Z" fill={c} />}
+      {kind === 'ellipse' && <ellipse cx="12" cy="12" rx="11" ry="6.8" fill={c} />}
       {kind === 'line' && <line x1="2" y1="22" x2="22" y2="2" stroke={c} strokeWidth="3" />}
     </svg>
   )
+}
+
+export const SHAPE_LABELS: Record<ShapeKind, string> = {
+  circle: '円',
+  triangle: '三角',
+  square: '四角',
+  line: '直線',
+  trapezoid: '台形',
+  spherical: '球面三角',
+  ellipse: '楕円',
 }
 
 export function Slider({

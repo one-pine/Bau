@@ -1,4 +1,5 @@
 import { rgbCss } from './color'
+import { ellipseRadii, sphericalVertices, trapezoidPoints, trianglePoints } from './geometry'
 import { drawOp, lineThickness } from './render'
 import type { DrawOp, Settings } from './types'
 import { saveBlob, saveText } from '../platform'
@@ -38,6 +39,7 @@ export function isDark(hex: string) {
 }
 
 const f = (n: number) => +n.toFixed(2)
+const pts = (ps: [number, number][]) => ps.map(([x, y]) => `${f(x)},${f(y)}`).join(' ')
 
 export function opsToSvg(ops: DrawOp[], settings: Settings, W: number, H: number): string {
   const blend = blendOp(settings)
@@ -53,9 +55,19 @@ export function opsToSvg(ops: DrawOp[], settings: Settings, W: number, H: number
           return `<circle transform="${t}" r="${f(h)}" fill="${fill}"${o}/>`
         case 'square':
           return `<rect transform="${t}" x="${f(-h)}" y="${f(-h)}" width="${f(op.size)}" height="${f(op.size)}" fill="${fill}"${o}/>`
-        case 'triangle': {
-          const th = (op.size * Math.sqrt(3)) / 2
-          return `<polygon transform="${t}" points="0,${f((-th * 2) / 3)} ${f(h)},${f(th / 3)} ${f(-h)},${f(th / 3)}" fill="${fill}"${o}/>`
+        case 'triangle':
+          return `<polygon transform="${t}" points="${pts(trianglePoints(op.size, op.apex))}" fill="${fill}"${o}/>`
+        case 'trapezoid':
+          return `<polygon transform="${t}" points="${pts(trapezoidPoints(op.size))}" fill="${fill}"${o}/>`
+        case 'spherical': {
+          const [top, right, left] = sphericalVertices(op.size)
+          const r = f(op.size)
+          const p = (v: [number, number]) => `${f(v[0])} ${f(v[1])}`
+          return `<path transform="${t}" d="M${p(right)} A${r} ${r} 0 0 1 ${p(left)} A${r} ${r} 0 0 1 ${p(top)} A${r} ${r} 0 0 1 ${p(right)}Z" fill="${fill}"${o}/>`
+        }
+        case 'ellipse': {
+          const { rx, ry } = ellipseRadii(op.size)
+          return `<ellipse transform="${t}" rx="${f(rx)}" ry="${f(ry)}" fill="${fill}"${o}/>`
         }
         case 'line':
           return `<line transform="${t}" x1="${f(-h)}" y1="0" x2="${f(h)}" y2="0" stroke="${fill}" stroke-width="${f(lineThickness(op.size, W, H))}"${o}/>`

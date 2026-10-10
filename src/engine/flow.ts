@@ -5,6 +5,9 @@
  *   ○ 滑らかな円運動
  *   □ 静止と 90° の回転を交互に繰り返す（安定と緊張）
  *   ─ 振り子のような揺れ
+ *   台形 地に据わった形：ゆっくり左右にたゆたう
+ *   球面三角形 どの向きでも幅が同じ形（ルーローの三角形）：転がるように回り続ける
+ *   楕円 長軸に沿った楕円軌道
  */
 import type { ShapeKind } from './types'
 
@@ -40,6 +43,21 @@ export function flowOffset(kind: ShapeKind, size: number, rotation: number, seed
     }
     case 'line': {
       return { dx: 0, dy: 0, drot: 28 * Math.sin(t * 0.9 + phase * 6.28), dscale: 1 }
+    }
+    case 'trapezoid': {
+      const a = Math.sin(t * 0.35 + phase * 6.28)
+      return { dx: a * size * 0.18, dy: 0, drot: a * 4, dscale: 1 }
+    }
+    case 'spherical': {
+      const dir = seed % 2 ? 1 : -1
+      return { dx: 0, dy: 0, drot: dir * (t * 36 + phase * 360), dscale: 1 }
+    }
+    case 'ellipse': {
+      const a = (t * 0.45 + phase) * Math.PI * 2
+      const r = (rotation * Math.PI) / 180
+      const ex = Math.cos(a) * size * 0.5
+      const ey = Math.sin(a) * size * 0.18
+      return { dx: ex * Math.cos(r) - ey * Math.sin(r), dy: ex * Math.sin(r) + ey * Math.cos(r), drot: 0, dscale: 1 }
     }
   }
 }

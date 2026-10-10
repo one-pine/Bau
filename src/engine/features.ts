@@ -5,17 +5,18 @@
  * 形の種類と数（ルール E）、画面の診断（ルール B）で使う値をまとめて計算する。
  */
 import { rgbToHex } from './color'
+import { areaFactor } from './geometry'
 import { perceivedCenter, tensionScore } from './rules'
 import type { ShapeKind, Visual } from './types'
 
-export const KINDS: ShapeKind[] = ['circle', 'triangle', 'square', 'line']
+export const KINDS: ShapeKind[] = ['circle', 'triangle', 'square', 'line', 'trapezoid', 'spherical', 'ellipse']
 
 export interface Features {
   count: number
   byKind: Record<ShapeKind, number>
   /** 形の種類ごとの割合（合計 1） */
   shares: Record<ShapeKind, number>
-  /** 形の種類の多様性。0＝1 種類だけ … 1＝全種類が同数（正規化エントロピー） */
+  /** 形の種類の多様性。0＝1 種類だけ … 1＝7 種類すべてが同数（正規化エントロピー） */
   diversity: number
   /** △□○ がどれだけ同数に近いか。0 … 1（シュレンマーの三つ組） */
   triad: number
@@ -33,10 +34,8 @@ export interface Features {
   sizes: number
 }
 
-const AREA: Record<ShapeKind, number> = { circle: Math.PI / 4, square: 1, triangle: Math.sqrt(3) / 4, line: 0.06 }
-
 export function computeFeatures(items: { kind: ShapeKind; v: Visual }[], W: number, H: number): Features {
-  const byKind: Record<ShapeKind, number> = { circle: 0, triangle: 0, square: 0, line: 0 }
+  const byKind = Object.fromEntries(KINDS.map((k) => [k, 0])) as Record<ShapeKind, number>
   for (const { kind } of items) byKind[kind]++
   const count = items.length
   const shares = Object.fromEntries(KINDS.map((k) => [k, count ? byKind[k] / count : 0])) as Record<ShapeKind, number>
@@ -51,7 +50,7 @@ export function computeFeatures(items: { kind: ShapeKind; v: Visual }[], W: numb
   // 重さは色にも依存するので、目安として明度の重みを掛ける（rules.ts と同じ式の近似）
   const massItems = items.map(({ kind, v }) => {
     const lum = (0.2126 * v.color[0] + 0.7152 * v.color[1] + 0.0722 * v.color[2]) / 255
-    return { massCoef: AREA[kind] * (0.35 + 0.9 * (1 - lum)) * v.alpha, size: v.size, x: v.x, y: v.y }
+    return { massCoef: areaFactor(kind, v.apex) * (0.35 + 0.9 * (1 - lum)) * v.alpha, size: v.size, x: v.x, y: v.y }
   })
   const minDim = Math.min(W, H)
   const c = perceivedCenter(massItems, W, H)
@@ -69,7 +68,7 @@ export function computeFeatures(items: { kind: ShapeKind; v: Visual }[], W: numb
   }
 
   let area = 0
-  for (const { kind, v } of items) area += AREA[kind] * v.size * v.size
+  for (const { kind, v } of items) area += areaFactor(kind, v.apex) * v.size * v.size
   return {
     count,
     byKind,

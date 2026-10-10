@@ -1,4 +1,22 @@
-export type ShapeKind = 'circle' | 'triangle' | 'square' | 'line'
+/**
+ * 図形の種類。イッテンの 6 形（□赤 △黄 ○青 台形橙 球面三角形緑 楕円紫）と直線。
+ * spherical は球面三角形（ルーローの三角形）。
+ */
+export type ShapeKind = 'circle' | 'triangle' | 'square' | 'line' | 'trapezoid' | 'spherical' | 'ellipse'
+
+/** イッテンの 7 つの色彩対比（docs/bauhaus-theory.md §2-1）。none は対比を強調しない */
+export type ContrastMode =
+  | 'none'
+  | 'hue' // 色相の対比：純色同士
+  | 'lightDark' // 明暗の対比
+  | 'coldWarm' // 寒暖の対比
+  | 'complementary' // 補色の対比
+  | 'simultaneous' // 同時対比：1 色と、同じ明るさの灰色
+  | 'saturation' // 彩度の対比：1 色だけ鮮やか
+  | 'extension' // 面積の対比：ゲーテの比率で色の量を釣り合わせる
+
+/** 色調：カラー／モノトーン／モノトーン＋1 色（docs/roadmap.md §2-6） */
+export type ToneMode = 'color' | 'mono' | 'accent'
 
 /**
  * ユーザーが入力した「生の」図形データ。
@@ -22,6 +40,8 @@ export interface Shape {
   contrast: number
   /** カオス配置・Auto Flow の位相に使う固定乱数 */
   seed: number
+  /** 三角形の頂角（度）。省略時は 60（正三角形） */
+  apex?: number
 }
 
 export type GridMode = '8' | '12' | 'golden'
@@ -34,6 +54,7 @@ export type RuleId =
   | 'frame' // 画面の枠からはみ出さない
   | 'balance' // E4/N1 視覚的重みの重心を目標点へ
   | 'tension' // N1 カンディンスキーの基礎平面：重いものを下（安定）か上（劇的）へ
+  | 'extension' // N6 イッテンの面積の対比：色ごとの面積をゲーテの比率へ
 
 export type RuleWeights = Record<RuleId, number>
 
@@ -55,6 +76,10 @@ export interface Settings {
   dynamism: number
   /** 基礎平面の緊張：-1＝安定（重いものは下・右）… +1＝劇的（重いものを上・左） */
   tension: number
+  /** イッテンの色彩対比のうち、どれを強調するか */
+  contrastMode: ContrastMode
+  /** 色調 */
+  tone: ToneMode
 }
 
 export interface View {
@@ -74,6 +99,8 @@ export interface Visual {
   rotation: number
   color: RGB
   alpha: number
+  /** 三角形の頂角（度） */
+  apex: number
 }
 
 /** 1 回分の描画命令。Canvas と SVG の両方がこれを消費する。 */
@@ -86,6 +113,7 @@ export interface DrawOp {
   rotation: number
   color: RGB
   alpha: number
+  apex: number
   /** 0 = オリジナル、それ以外は万華鏡の複製 */
   copy: number
 }

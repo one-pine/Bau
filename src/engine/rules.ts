@@ -10,6 +10,8 @@
  * コストは「0 が理想、1 前後が目に見えてまずい状態」になるよう正規化する。
  */
 import { visualMass, type SnapPoint } from './bauhaus'
+import { rgbToHsl } from './color'
+import { areaFactor } from './geometry'
 import type { RGB, RuleId, RuleWeights, Settings, Shape, ShapeKind } from './types'
 
 /** ソルバーが扱う図形 1 つ分の作業状態 */
@@ -28,6 +30,8 @@ export interface Item {
   y: number
   size: number
   rotation: number
+  /** 三角形の頂角（度） */
+  apex: number
   color: RGB
   alpha: number
   /** 大きさ 1px あたりの重さ（色の重み × 形の面積係数 × 不透明度） */
@@ -235,7 +239,56 @@ const tension: GlobalRule = {
   },
 }
 
-export const RULES: Rule[] = [fidelity, grid, spacing, frame, balance, tension]
+// ───────────────────────── N6 イッテンの面積の対比
+
+/**
+ * ゲーテの明度値から導かれる「調和する面積比」（黄 3 : 橙 4 : 赤 6 : 紫 9 : 青 8 : 緑 6）。
+ * 明るい色ほど少ない面積で釣り合う。docs/bauhaus-theory.md §2-2（数値は 🔶 要確認）。
+ */
+export const GOETHE_AREA = { yellow: 3, orange: 4, red: 6, violet: 9, blue: 8, green: 6 } as const
+export type HueFamily = keyof typeof GOETHE_AREA
+
+/** 色相から 6 つの色の系統に分ける。彩度の低い色（灰色）は null */
+export function hueFamily(rgb: RGB): HueFamily | null {
+  const [h, s] = rgbToHsl(rgb)
+  if (s < 0.15) return null
+  if (h >= 345 || h < 15) return 'red'
+  if (h < 40) return 'orange'
+  if (h < 75) return 'yellow'
+  if (h < 180) return 'green'
+  if (h < 255) return 'blue'
+  return 'violet'
+}
+
+/** 色の系統ごとの面積の割合と、ゲーテの比率との差（L1 距離）。系統が 2 つ未満なら 0 */
+export function extensionError(items: Pick<Item, 'kind' | 'size' | 'apex' | 'color' | 'alpha'>[]): number {
+  const area = new Map<HueFamily, number>()
+  let total = 0
+  for (const it of items) {
+    const f = hueFamily(it.color)
+    if (!f) continue
+    const a = areaFactor(it.kind, it.apex) * it.size * it.size * it.alpha
+    area.set(f, (area.get(f) ?? 0) + a)
+    total += a
+  }
+  if (area.size < 2 || total <= 0) return 0
+  let ideal = 0
+  for (const f of area.keys()) ideal += GOETHE_AREA[f]
+  let err = 0
+  for (const [f, a] of area) err += Math.abs(a / total - GOETHE_AREA[f] / ideal)
+  return err
+}
+
+const extension: GlobalRule = {
+  id: 'extension',
+  kind: 'global',
+  label: '面積',
+  cost(items) {
+    return extensionError(items) * 3
+  },
+}
+
+export const RULES: Rule[] = [fidelity, grid, spacing, frame, balance, tension, extension]
 
 export const DEFAULT_WEIGHTS: RuleWeights = {
   fidelity: 0.6,
@@ -244,6 +297,8 @@ export const DEFAULT_WEIGHTS: RuleWeights = {
   frame: 1,
   balance: 1,
   tension: 1,
+  // 面積の対比は大きさを変えるので、ふだんは 0。対比モード「面積」で有効になる（layout.ts）
+  extension: 0,
 }
 
 export const RULE_LABELS: Record<RuleId, string> = Object.fromEntries(RULES.map((r) => [r.id, r.label])) as Record<
@@ -252,9 +307,14 @@ export const RULE_LABELS: Record<RuleId, string> = Object.fromEntries(RULES.map(
 >
 
 /** 描画中の状態（アニメーション途中の値）から、重心と均衡の目標点を求める。天秤の表示に使う */
-export function visualBalance(entries: { kind: ShapeKind; v: { x: number; y: number; size: number; color: RGB; alpha: number } }[], settings: Settings, W: number, H: number) {
+export function visualBalance(
+  entries: { kind: ShapeKind; v: { x: number; y: number; size: number; color: RGB; alpha: number; apex?: number } }[],
+  settings: Settings,
+  W: number,
+  H: number,
+) {
   const items = entries.map(({ kind, v }) => ({
-    massCoef: visualMass(kind, { size: 1, color: v.color, alpha: v.alpha }),
+    massCoef: visualMass(kind, { size: 1, color: v.color, alpha: v.alpha, apex: v.apex }),
     size: v.size,
     x: v.x,
     y: v.y,
@@ -269,6 +329,6 @@ export function makeItem(shape: Shape, partial: Omit<Item, 'shape' | 'kind' | 'm
     shape,
     kind: shape.kind,
     ...partial,
-    massCoef: visualMass(shape.kind, { size: 1, color: partial.color, alpha: partial.alpha }),
+    massCoef: visualMass(shape.kind, { size: 1, color: partial.color, alpha: partial.alpha, apex: partial.apex }),
   }
 }

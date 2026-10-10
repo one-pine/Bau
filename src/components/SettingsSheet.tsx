@@ -1,13 +1,30 @@
 import { RotateCcw } from 'lucide-react'
 import { BACKGROUNDS } from '../engine/bauhaus'
 import { DEFAULT_WEIGHTS, RULES } from '../engine/rules'
-import type { GridMode, RuleId } from '../engine/types'
+import type { ContrastMode, GridMode, RuleId, ToneMode } from '../engine/types'
 import { useRuntime } from '../state/runtime'
 import { actions, defaultView, useStore } from '../state/store'
 import Sheet from './Sheet'
 import { SectionTitle, Segmented, Slider, Toggle } from './ui'
 
 const pct = (v: number) => `${Math.round(v * 100)}%`
+
+const TONE_HINT: Record<ToneMode, string> = {
+  color: '色相・明るさ・面積で重さが決まる。',
+  mono: '重さは明るさと面積だけで決まり、形そのものの対比が主役になる。明るさは 7 段階（イッテンの色彩球）。',
+  accent: 'バウハウスの印刷物のように、白黒の中で最も大きな図形にだけ色を残す。',
+}
+
+const CONTRASTS: { value: ContrastMode; label: string; hint: string }[] = [
+  { value: 'none', label: 'なし', hint: '形と色の対応のまま。背景に溶け込む色だけを補正する。' },
+  { value: 'hue', label: '色相', hint: '色相の対比：すべてを純色（イッテンの 6 色相）へ寄せる。' },
+  { value: 'lightDark', label: '明暗', hint: '明暗の対比：大きな図形ほど背景から遠い明るさに。7 段階をまんべんなく使う。' },
+  { value: 'coldWarm', label: '寒暖', hint: '寒暖の対比：角ばった形は暖色へ、丸い形は寒色へ押し出す。' },
+  { value: 'complementary', label: '補色', hint: '補色の対比：最も大きな図形の色と、その補色の 2 色だけで構成する。' },
+  { value: 'simultaneous', label: '同時', hint: '同時対比：主役の 1 色と、同じ明るさの灰色。灰色が主役の補色を帯びて見える。' },
+  { value: 'saturation', label: '彩度', hint: '彩度の対比：主役だけ鮮やかに、ほかは灰色を混ぜて沈める。' },
+  { value: 'extension', label: '面積', hint: '面積の対比：明るい色ほど小さく（黄 3 : 橙 4 : 赤 6 : 緑 6 : 青 8 : 紫 9）。図形の大きさが変わる。' },
+]
 
 export default function SettingsSheet() {
   const s = useStore((st) => st.settings)
@@ -66,10 +83,44 @@ export default function SettingsSheet() {
           <SectionTitle>カンディンスキー 対応論</SectionTitle>
           <Toggle
             label="形態 ⇄ 色彩の連動"
-            hint="△＝黄、□＝赤、○＝青。手動で色を選んだ図形はその色を保ちます"
+            hint="□赤 △黄 ○青 台形橙 球面三角緑 楕円紫。三角形は頂角で 鋭角＝黄 → 鈍角＝青、直線は 水平＝寒色 → 垂直＝暖色。手動で色を選んだ図形はその色を保つ"
             value={s.correspondence}
             onChange={(correspondence) => set({ correspondence })}
           />
+        </div>
+
+        <div>
+          <SectionTitle>色調 Tone</SectionTitle>
+          <Segmented<ToneMode>
+            value={s.tone}
+            onChange={(tone) => set({ tone })}
+            options={[
+              { value: 'color', label: 'カラー' },
+              { value: 'mono', label: 'モノトーン' },
+              { value: 'accent', label: '＋1色' },
+            ]}
+          />
+          <p className="mt-2 text-[11px] leading-relaxed opacity-60">{TONE_HINT[s.tone]}</p>
+        </div>
+
+        <div>
+          <SectionTitle>イッテン 7 つの色彩対比</SectionTitle>
+          <div className="grid grid-cols-4 border-t border-l border-ink">
+            {CONTRASTS.map((c) => (
+              <button
+                key={c.value}
+                type="button"
+                onClick={() => set({ contrastMode: c.value })}
+                className={[
+                  'flex h-10 items-center justify-center border-r border-b border-ink text-xs',
+                  s.contrastMode === c.value ? 'bg-ink text-paper' : 'bg-paper text-ink',
+                ].join(' ')}
+              >
+                {c.label}
+              </button>
+            ))}
+          </div>
+          <p className="mt-2 text-[11px] leading-relaxed opacity-60">{CONTRASTS.find((c) => c.value === s.contrastMode)?.hint}</p>
         </div>
 
         <div>

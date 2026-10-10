@@ -21,7 +21,9 @@ npx cap open android / ios
 ## 構成
 - `src/engine/` … 理論エンジン。**描画や React に依存しない純粋関数に保つ**（Godot 移植とテストのため）
   - `rules.ts` レイアウト・ルール（各理論がコストを返す）、`layout.ts` ソルバー（初期配置＋局所探索）、`bauhaus.ts` 理論の部品（グリッド・フィボナッチ・色の重さ・対比）
+  - `palette.ts` 色の段（形と色の対応 → 背景との対比補正 → イッテンの対比モード → 色調）、`geometry.ts` 7 つの形の寸法・面積（描画と計算で共有）
   - `features.ts` 画面の特徴量（指揮者用）、`flow.ts` 動き、`render.ts` Canvas 描画・天秤・ヒットテスト、`export.ts` 書き出し、`color.ts` 色計算
+  - **新しい形は `types.ts` の `ShapeKind` に足すと、型エラーで対応が必要な箇所（描画・SVG・動き・グリフ）が全部わかる**
   - **新しい理論は `rules.ts` にルールとして足す**（`RuleId` を `types.ts` に追加、`DEFAULT_WEIGHTS` に重み、テストを書く）
 - `src/state/store.ts` … 状態（useSyncExternalStore）、undo/redo、localStorage 保存
 - `src/state/activity.ts` … 操作の記録（指揮者の「飽き」判定用、端末内のみ）、`src/state/runtime.ts` … 構図の評価を UI へ渡す
@@ -38,5 +40,5 @@ npx cap open android / ios
 - 作業ブランチ：`claude/cloud-session-credits-3r1r27`
 
 ## 次にやること
-フェーズ 1（エンジンの作り直し）は完了。次はフェーズ 2「形と色の語彙」：
-N2 線の温度、N3 角度と色、N4 6 形 6 色、N5 イッテンの 7 つの対比、N6 面積の対比、N25 色調モード（`docs/roadmap.md` §3）。
+フェーズ 1（エンジン）、フェーズ 2（形と色の語彙）は完了。次はフェーズ 3「触って遊ぶ道具」：
+N16 形の文法（ハルトヴィヒのチェス）、N24 折りツール、N9 正方形へのオマージュ、N14 散歩する線、N19 方向の対比（`docs/roadmap.md` §3）。

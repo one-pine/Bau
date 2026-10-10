@@ -18,6 +18,8 @@ const base: Settings = {
   weights: DEFAULT_WEIGHTS,
   dynamism: 0,
   tension: 0,
+  contrastMode: 'none',
+  tone: 'color',
 }
 
 let n = 0

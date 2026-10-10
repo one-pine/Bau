@@ -3,7 +3,7 @@ import { activityRate, clearActivity, idleMs, recentActivity, recordActivity, re
 import { computeFeatures } from './features'
 import type { RGB, ShapeKind, Visual } from './types'
 
-const v = (x: number, y: number, size: number, color: RGB = [30, 79, 160]): Visual => ({ x, y, size, rotation: 0, color, alpha: 1 })
+const v = (x: number, y: number, size: number, color: RGB = [30, 79, 160]): Visual => ({ x, y, size, rotation: 0, color, alpha: 1, apex: 60 })
 const item = (kind: ShapeKind, x: number, y: number, size = 40, color?: RGB) => ({ kind, v: v(x, y, size, color) })
 
 describe('computeFeatures', () => {
@@ -16,7 +16,7 @@ describe('computeFeatures', () => {
 
   it('diversity is 0 for one kind and 1 for all kinds equally', () => {
     expect(computeFeatures([item('square', 0, 0), item('square', 50, 50)], 400, 400).diversity).toBe(0)
-    const all = (['circle', 'triangle', 'square', 'line'] as const).map((k, i) => item(k, i * 80, 100))
+    const all = (['circle', 'triangle', 'square', 'line', 'trapezoid', 'spherical', 'ellipse'] as const).map((k, i) => item(k, i * 50, 100))
     expect(computeFeatures(all, 400, 400).diversity).toBeCloseTo(1)
   })
 

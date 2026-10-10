@@ -5,11 +5,12 @@
  * ここには、それらが使う理論の部品（グリッド、フィボナッチ、色の重さ、対比補正など）を置く。
  *   1. モジュール・グリッド・スナップ   … 8×8 / 12×12 / 黄金比分割の交点・対角線上へ吸着
  *   2. フィボナッチ・サイズ規格化       … 8, 13, 21, 34, 55, 89, 144, 233
- *   3. カンディンスキーの色彩・形態対応 … △=黄 □=赤 ○=青、色の視覚的重みで重心を中央へ
+ *   3. 形と色の対応・色の視覚的重み     … △=黄 □=赤 ○=青（＋イッテンの 6 形 6 色）、暗く寒い色ほど重い
  *   4. イッテンの色彩対比               … 背景との明暗・補色対比が足りない色を自動補正
  */
 import { contrastRatio, hslToRgb, luminance, rgbToHsl } from './color'
-import type { GridMode, RGB, Settings, Shape, ShapeKind, Visual } from './types'
+import { areaFactor } from './geometry'
+import type { GridMode, RGB, ShapeKind, Visual } from './types'
 
 export const PHI = (1 + Math.sqrt(5)) / 2
 export const FIB = [8, 13, 21, 34, 55, 89, 144, 233]
@@ -19,10 +20,17 @@ export function unitPx(W: number, H: number): number {
   return Math.min(W, H) / 400
 }
 
+/**
+ * 形と色の対応。カンディンスキー（△黄 □赤 ○青）と、イッテンの 6 形 6 色（台形橙・球面三角形緑・楕円紫）。
+ * 三角形の頂角と直線の向きによる変化は palette.ts の correspondenceColor。
+ */
 export const KANDINSKY: Record<ShapeKind, string> = {
   triangle: '#f2c230',
   square: '#d7261e',
   circle: '#1e4fa0',
+  trapezoid: '#e8762c',
+  spherical: '#2e7d4f',
+  ellipse: '#6b3fa0',
   line: '#141414',
 }
 
@@ -35,6 +43,7 @@ export const PALETTE = [
   '#8c8a85', // grey
   '#e8762c', // orange
   '#2e7d4f', // green
+  '#6b3fa0', // violet
 ]
 
 export const BACKGROUNDS = [
@@ -107,15 +116,8 @@ export function colorWeight(rgb: RGB): number {
   return 0.35 + 0.9 * (1 - luminance(rgb)) + 0.2 * cool
 }
 
-const AREA: Record<ShapeKind, number> = {
-  circle: Math.PI / 4,
-  square: 1,
-  triangle: Math.sqrt(3) / 4,
-  line: 0.06,
-}
-
-export function visualMass(kind: ShapeKind, v: Pick<Visual, 'size' | 'color' | 'alpha'>): number {
-  return colorWeight(v.color) * AREA[kind] * v.size * v.size * v.alpha
+export function visualMass(kind: ShapeKind, v: Pick<Visual, 'size' | 'color' | 'alpha'> & { apex?: number }): number {
+  return colorWeight(v.color) * areaFactor(kind, v.apex) * v.size * v.size * v.alpha
 }
 
 export function centerOfMass(
@@ -174,10 +176,4 @@ export function mulberry32(seed: number) {
     t ^= t + Math.imul(t ^ (t >>> 7), t | 61)
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296
   }
-}
-
-// ───────────────────────── 色の解決（配置は layout.ts / rules.ts）
-
-export function resolveColor(shape: Shape, settings: Settings): string {
-  return settings.correspondence && !shape.colorLocked ? KANDINSKY[shape.kind] : shape.color
 }

@@ -29,6 +29,8 @@ const settings: Settings = {
   weights: DEFAULT_WEIGHTS,
   dynamism: 0,
   tension: 0,
+  contrastMode: 'none',
+  tone: 'color',
 }
 
 const shape = (p: Partial<Shape>): Shape => ({

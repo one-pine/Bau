@@ -9,7 +9,25 @@ import type { ShapeKind } from './engine/types'
 import { actions, store, useStore } from './state/store'
 
 const GRID_LABEL = { '8': '8×8', '12': '12×12', golden: 'φ' } as const
-const KEY_TOOLS: Record<string, ShapeKind> = { '1': 'circle', '2': 'triangle', '3': 'square', '4': 'line' }
+const CONTRAST_LABEL = {
+  none: '',
+  hue: 'HUE',
+  lightDark: 'LIGHT–DARK',
+  coldWarm: 'COLD–WARM',
+  complementary: 'COMPLEMENT',
+  simultaneous: 'SIMULTANEOUS',
+  saturation: 'SATURATION',
+  extension: 'EXTENSION',
+} as const
+const KEY_TOOLS: Record<string, ShapeKind> = {
+  '1': 'circle',
+  '2': 'triangle',
+  '3': 'square',
+  '4': 'line',
+  '5': 'trapezoid',
+  '6': 'spherical',
+  '7': 'ellipse',
+}
 
 export default function App() {
   const empty = useStore((s) => s.shapes.length === 0)
@@ -55,6 +73,8 @@ export default function App() {
     settings.mode === 'order' && settings.correspondence && 'KANDINSKY',
     settings.symmetry && `SYM ${settings.folds}${settings.mirror ? 'm' : ''}`,
     settings.flow && 'FLOW',
+    settings.mode === 'order' && settings.contrastMode !== 'none' && `ITTEN ${CONTRAST_LABEL[settings.contrastMode]}`,
+    settings.tone !== 'color' && (settings.tone === 'mono' ? 'MONO' : 'MONO+1'),
   ].filter(Boolean)
 
   return (

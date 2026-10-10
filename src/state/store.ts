@@ -35,6 +35,8 @@ const defaultSettings: Settings = {
   weights: DEFAULT_WEIGHTS,
   dynamism: 0.4,
   tension: -0.3,
+  contrastMode: 'none',
+  tone: 'color',
 }
 
 export const defaultView: View = { zoom: 1, rotation: 0, panX: 0, panY: 0 }
@@ -116,6 +118,7 @@ export const actions = {
     const shape: Shape = {
       size: FIB[3 + Math.floor(Math.random() * 3)],
       rotation: 0,
+      apex: 60,
       color: PALETTE[Math.floor(Math.random() * 4)],
       colorLocked: false,
       alpha: 1,
